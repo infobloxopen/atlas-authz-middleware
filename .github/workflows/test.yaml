@@ -1,0 +1,30 @@
+name: Test
+on: pull_request
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        e2e: [false, true]
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: ./src/github.com/${{ github.repository }}
+    env:
+      GOPATH: ${{ github.workspace }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          # check out actual commit that triggered event
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: ./src/github.com/${{ github.repository }}
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.15.x
+      - name: Unit tests
+        if: ${{ !matrix.e2e }}
+        run: |
+          make test
