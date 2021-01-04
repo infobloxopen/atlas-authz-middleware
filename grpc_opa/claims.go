@@ -1,7 +1,7 @@
 package grpc_opa_middleware
 
 import (
-	athena_claims "github.com/Infoblox-CTO/athena-authn-claims"
+	athena_claims "github.com/infobloxopen/atlas-claims"
 )
 
 // athena-authn_claims.UnverifiedClaimFromBearers
