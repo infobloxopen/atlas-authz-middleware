@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"os"
 	"syscall"
 	"testing"
 	"time"
@@ -12,8 +13,6 @@ import (
 	"github.com/open-policy-agent/opa/server"
 	"github.com/open-policy-agent/opa/storage/inmem"
 )
-
-const opaImage = "openpolicyagent/opa:latest"
 
 func TestRestAPI(t *testing.T) {
 
@@ -81,10 +80,11 @@ func startOpa(ctx context.Context, t *testing.T, done chan struct{}) Clienter {
 	go func() {
 		<-ctx.Done()
 
-		shutdownCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 		defer cancel()
 		if err := opaSvr.Shutdown(shutdownCtx); err != nil {
-			t.Fatal(err)
+			t.Logf(err.Error())
+			os.Exit(1)
 		}
 		close(done)
 	}()
@@ -97,6 +97,7 @@ func startOpa(ctx context.Context, t *testing.T, done chan struct{}) Clienter {
 			t.Fatal("time out starting opa")
 		default:
 			if err := cli.Health(); err == nil {
+				t.Logf("opa started")
 				return cli
 			}
 			t.Logf("opa not ready: %s", err)
