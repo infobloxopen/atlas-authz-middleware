@@ -26,7 +26,7 @@ const (
 	REDACTED = "redacted"
 	TypeKey  = ABACKey("ABACType")
 	VerbKey  = ABACKey("ABACVerb")
-	obKey  = obligationKey("obligations")
+	obKey    = obligationKey("obligations")
 )
 
 // Override to set your servicename
