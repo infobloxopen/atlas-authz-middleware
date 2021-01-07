@@ -240,7 +240,10 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, opa
 			trace.StringAttribute("out", string(raw)),
 		}, "out")
 	}
-
+	// adding obligations data to context if present
+	if ob,ok := response["obligations"].([]string);ok{
+		ctx = context.WithValue(ctx,"obligations",ob)
+	}
 	if !response.Allow() {
 		return false, ctx, ErrForbidden
 	}
