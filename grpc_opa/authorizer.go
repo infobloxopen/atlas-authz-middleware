@@ -20,11 +20,13 @@ import (
 
 // ABACKey is a context.Context key type
 type ABACKey string
+type obligationKey string
 
 const (
 	REDACTED = "redacted"
 	TypeKey  = ABACKey("ABACType")
 	VerbKey  = ABACKey("ABACVerb")
+	obKey  = obligationKey("obligations")
 )
 
 // Override to set your servicename
@@ -241,8 +243,8 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, opa
 		}, "out")
 	}
 	// adding obligations data to context if present
-	if ob,ok := response["obligations"].([]string);ok{
-		ctx = context.WithValue(ctx,"obligations",ob)
+	if ob, ok := response[string(obKey)].([]string); ok {
+		ctx = context.WithValue(ctx, obKey, ob)
 	}
 	if !response.Allow() {
 		return false, ctx, ErrForbidden
