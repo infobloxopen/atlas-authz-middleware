@@ -20,13 +20,13 @@ import (
 
 // ABACKey is a context.Context key type
 type ABACKey string
-type obligationKey string
+type ObligationKey string
 
 const (
 	REDACTED = "redacted"
 	TypeKey  = ABACKey("ABACType")
 	VerbKey  = ABACKey("ABACVerb")
-	obKey    = obligationKey("obligations")
+	ObKey    = ObligationKey("obligations")
 )
 
 // Override to set your servicename
@@ -324,8 +324,8 @@ func redactJWT(jwt string) string {
 }
 
 func addObligations(ctx context.Context, response OPAResponse) context.Context {
-	if ob, ok := response[string(obKey)].([]string); ok {
-		ctx = context.WithValue(ctx, obKey, ob)
+	if ob, ok := response[string(ObKey)].([]string); ok {
+		ctx = context.WithValue(ctx, ObKey, ob)
 	}
 	return ctx
 }
