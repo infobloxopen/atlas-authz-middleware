@@ -243,9 +243,7 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, opa
 		}, "out")
 	}
 	// adding obligations data to context if present
-	if ob, ok := response[string(obKey)].([]string); ok {
-		ctx = context.WithValue(ctx, obKey, ob)
-	}
+	ctx = addObligations(ctx, response)
 	if !response.Allow() {
 		return false, ctx, ErrForbidden
 	}
@@ -323,4 +321,11 @@ func redactJWT(jwt string) string {
 		parts[len(parts)-1] = REDACTED
 	}
 	return strings.Join(parts, ".")
+}
+
+func addObligations(ctx context.Context, response OPAResponse) context.Context {
+	if ob, ok := response[string(obKey)].([]string); ok {
+		ctx = context.WithValue(ctx, obKey, ob)
+	}
+	return ctx
 }

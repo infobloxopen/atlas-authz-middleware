@@ -1,6 +1,7 @@
 package grpc_opa_middleware
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -20,4 +21,26 @@ func Test_parseEndpoint(t *testing.T) {
 		t.Errorf("got: %s, wanted: %s", endpoint, expected)
 	}
 
+}
+
+func Test_addObligations(t *testing.T) {
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, "allow", false)
+	resp := make(OPAResponse)
+	resp["allow"] = true
+
+	// without obligations
+	resCtx := addObligations(ctx, resp)
+	if v, ok := resCtx.Value(obKey).([]string); ok {
+		t.Fatalf("received obligations data: %v .. was expected to be <nil>", v)
+	}
+
+	// with obligations
+	resp["obligations"] = []string{`ctx.metric == "dhcp"`}
+	resCtx = addObligations(ctx, resp)
+	if s, ok := resCtx.Value(obKey).([]string); !ok {
+		t.Fatal("obligations data missing")
+	} else if strings.Compare(`ctx.metric == "dhcp"`, s[0]) != 0 {
+		t.Fatal("obligations data mismatch,received:", s[0])
+	}
 }
