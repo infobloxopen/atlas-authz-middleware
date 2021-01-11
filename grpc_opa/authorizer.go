@@ -20,11 +20,13 @@ import (
 
 // ABACKey is a context.Context key type
 type ABACKey string
+type ObligationKey string
 
 const (
 	REDACTED = "redacted"
 	TypeKey  = ABACKey("ABACType")
 	VerbKey  = ABACKey("ABACVerb")
+	ObKey    = ObligationKey("obligations")
 )
 
 // Override to set your servicename
@@ -240,7 +242,8 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, opa
 			trace.StringAttribute("out", string(raw)),
 		}, "out")
 	}
-
+	// adding obligations data to context if present
+	ctx = addObligations(ctx, response)
 	if !response.Allow() {
 		return false, ctx, ErrForbidden
 	}
@@ -318,4 +321,11 @@ func redactJWT(jwt string) string {
 		parts[len(parts)-1] = REDACTED
 	}
 	return strings.Join(parts, ".")
+}
+
+func addObligations(ctx context.Context, response OPAResponse) context.Context {
+	if ob, ok := response[string(ObKey)].([]string); ok {
+		ctx = context.WithValue(ctx, ObKey, ob)
+	}
+	return ctx
 }
