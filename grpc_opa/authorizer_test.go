@@ -31,16 +31,16 @@ func Test_addObligations(t *testing.T) {
 
 	// without obligations
 	resCtx := addObligations(ctx, resp)
-	if v, ok := resCtx.Value(ObKey).([]string); ok {
+	if v, ok := resCtx.Value(ObKey).([][]string); ok {
 		t.Fatalf("received obligations data: %v .. was expected to be <nil>", v)
 	}
 
 	// with obligations
-	resp["obligations"] = []string{`ctx.metric == "dhcp"`}
+	resp["obligations"] = [][]string{{`ctx.metric == "dhcp"`}}
 	resCtx = addObligations(ctx, resp)
-	if s, ok := resCtx.Value(ObKey).([]string); !ok {
+	if s, ok := resCtx.Value(ObKey).([][]string); !ok {
 		t.Fatal("obligations data missing")
-	} else if strings.Compare(`ctx.metric == "dhcp"`, s[0]) != 0 {
-		t.Fatal("obligations data mismatch,received:", s[0])
+	} else if strings.Compare(`ctx.metric == "dhcp"`, s[0][0]) != 0 {
+		t.Fatal("obligations data mismatch,received:", s[0][0])
 	}
 }

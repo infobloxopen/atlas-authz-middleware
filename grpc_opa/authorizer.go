@@ -324,7 +324,7 @@ func redactJWT(jwt string) string {
 }
 
 func addObligations(ctx context.Context, response OPAResponse) context.Context {
-	if ob, ok := response[string(ObKey)].([]string); ok {
+	if ob, ok := response[string(ObKey)].([][]string); ok {
 		ctx = context.WithValue(ctx, ObKey, ob)
 	}
 	return ctx
