@@ -361,7 +361,9 @@ func parseObligationsArray(arrIfc []interface{}) (ObligationsType, error) {
 			subResult = append(subResult, s)
 		}
 
-		result = append(result, subResult)
+		if len(subResult) > 0 {
+			result = append(result, subResult)
+		}
 	}
 
 	return result, nil
@@ -395,7 +397,9 @@ func parseObligationsMap(mapIfc map[string]interface{}) (ObligationsType, error)
 				subResult = append(subResult, s)
 			}
 
-			result = append(result, subResult)
+			if len(subResult) > 0 {
+				result = append(result, subResult)
+			}
 		}
 	}
 
