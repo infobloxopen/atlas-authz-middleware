@@ -40,13 +40,23 @@ func Test_addObligations(t *testing.T) {
 
 		t.Logf("tst#%d: resp=%#v", idx, resp)
 		newCtx, actualErr := addObligations(ctx, resp)
-	        actualVal, _ := newCtx.Value(ObKey).(ObligationsType)
+
+		// Obligations is stored in the Context as type ObligationsType.
+		// This verifies that trying to extract obligations as a type
+		// other than ObligationsType (even if equivalent [][]string)
+		// does not work.
+	        ctxValWrongType, _ := newCtx.Value(ObKey).([][]string)
+		if ctxValWrongType != nil {
+			t.Errorf("tst#%d: expected nil, ctxValWrongType=%#v",
+				idx, ctxValWrongType)
+		}
 
 		if actualErr != tst.expectedErr {
 			t.Errorf("tst#%d: expectedErr=%s actualErr=%s",
 				idx, tst.expectedErr, actualErr)
 		}
 
+	        actualVal, _ := newCtx.Value(ObKey).(ObligationsType)
 		if actualVal != nil {
 			t.Logf("tst#%d: before sortBy1stElem: %#v", idx, actualVal)
 			actualVal.sortBy1stElem()
@@ -97,6 +107,10 @@ func TestOPAResponseObligations(t *testing.T) {
 // used for deterministic testing output
 func (ob *ObligationsType) sortBy1stElem() {
 	sort.SliceStable(*ob, func(lhs, rhs int) bool {
+		if ob == nil || (*ob)[lhs] == nil || (*ob)[rhs] == nil ||
+			len((*ob)[lhs]) <= 0 || len((*ob)[rhs]) <= 0 {
+			return false
+		}
 		return (*ob)[lhs][0] < (*ob)[rhs][0]
 	})
 }
@@ -165,11 +179,116 @@ var obligationTests = []struct {
 		expectedErr:  nil,
 		regoRespJSON: `{
 			"allow": true,
+			"obligations": []
+		}`,
+		expectedVal:  ObligationsType{},
+	},
+	{
+		expectedErr:  nil,
+		regoRespJSON: `{
+			"allow": true,
+			"obligations": [ [], [] ]
+		}`,
+		expectedVal:  ObligationsType{},
+	},
+	{
+		expectedErr:  nil,
+		regoRespJSON: `{
+			"allow": true,
+			"obligations": [ [], [ "a" ] ]
+		}`,
+		expectedVal:  ObligationsType{
+			{ "a" },
+		},
+	},
+	{
+		expectedErr:  nil,
+		regoRespJSON: `{
+			"allow": true,
 			"obligations": [ [ "a", "b" ], [ "c" ] ]
 		}`,
 		expectedVal:  ObligationsType{
 			{ "a", "b" },
 			{ "c" },
+		},
+	},
+	{
+		expectedErr:  nil,
+		regoRespJSON: `{
+			"allow": true,
+			"obligations": {}
+		}`,
+		expectedVal:  ObligationsType{},
+	},
+	{
+		expectedErr:  nil,
+		regoRespJSON: `{
+			"allow": true,
+			"obligations": {
+				"policy1_guid": {},
+				"policy2_guid": {}
+			}
+		}`,
+		expectedVal:  ObligationsType{},
+	},
+	{
+		expectedErr:  nil,
+		regoRespJSON: `{
+			"allow": true,
+			"obligations": {
+				"policy1_guid": {},
+				"policy2_guid": {
+					"stmt1": []
+				}
+			}
+		}`,
+		expectedVal:  ObligationsType{},
+	},
+	{
+		expectedErr:  nil,
+		regoRespJSON: `{
+			"allow": true,
+			"obligations": {
+				"policy1_guid": {
+					"stmt0": []
+				},
+				"policy2_guid": {
+					"stmt1": []
+				}
+			}
+		}`,
+		expectedVal:  ObligationsType{},
+	},
+	{
+		expectedErr:  nil,
+		regoRespJSON: `{
+			"allow": true,
+			"obligations": {
+				"policy1_guid": {
+					"stmt0": [ "i", "j" ]
+				},
+				"policy2_guid": {}
+			}
+		}`,
+		expectedVal:  ObligationsType{
+			{ "i", "j" },
+		},
+	},
+	{
+		expectedErr:  nil,
+		regoRespJSON: `{
+			"allow": true,
+			"obligations": {
+				"policy1_guid": {
+					"stmt0": [ "i", "j", "k" ]
+				},
+				"policy2_guid": {
+					"stmt1": []
+				}
+			}
+		}`,
+		expectedVal:  ObligationsType{
+			{ "i", "j", "k" },
 		},
 	},
 	{
