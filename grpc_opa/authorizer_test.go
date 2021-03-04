@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"strings"
 	"reflect"
-	"sort"
 	"testing"
 )
 
@@ -27,7 +26,7 @@ func Test_parseEndpoint(t *testing.T) {
 }
 
 func Test_addObligations(t *testing.T) {
-	for idx, tst := range obligationTests {
+	for idx, tst := range obligationsNodeTests {
 		ctx := context.Background()
 		var resp OPAResponse
 
@@ -41,32 +40,22 @@ func Test_addObligations(t *testing.T) {
 		t.Logf("tst#%d: resp=%#v", idx, resp)
 		newCtx, actualErr := addObligations(ctx, resp)
 
-		// Obligations is stored in the Context as type ObligationsType.
-		// This verifies that trying to extract obligations as a type
-		// other than ObligationsType (even if equivalent [][]string)
-		// does not work.
-	        ctxValWrongType, _ := newCtx.Value(ObKey).([][]string)
-		if ctxValWrongType != nil {
-			t.Errorf("tst#%d: expected nil, ctxValWrongType=%#v",
-				idx, ctxValWrongType)
-		}
-
 		if actualErr != tst.expectedErr {
 			t.Errorf("tst#%d: expectedErr=%s actualErr=%s",
 				idx, tst.expectedErr, actualErr)
 		}
 
-	        actualVal, _ := newCtx.Value(ObKey).(ObligationsType)
+	        actualVal, _ := newCtx.Value(ObKey).(*ObligationsNode)
 		if actualVal != nil {
-			t.Logf("tst#%d: before sortBy1stElem: %#v", idx, actualVal)
-			actualVal.sortBy1stElem()
+			t.Logf("tst#%d: before DeepSort: %s", idx, actualVal)
+			actualVal.DeepSort()
 		}
 		if !reflect.DeepEqual(actualVal, tst.expectedVal) {
 			// nil interface{} (untyped) does not compare equal with a nil typed value
 			// https://www.calhoun.io/when-nil-isnt-equal-to-nil/
 			// https://stackoverflow.com/questions/13476349/check-for-nil-and-nil-interface-in-go
 			if actualVal != nil || tst.expectedVal != nil {
-				t.Errorf("tst#%d: expectedVal=%#v actualVal=%#v",
+				t.Errorf("tst#%d: expectedVal=%s actualVal=%s",
 					idx, tst.expectedVal, actualVal)
 			}
 		}
@@ -74,7 +63,7 @@ func Test_addObligations(t *testing.T) {
 }
 
 func TestOPAResponseObligations(t *testing.T) {
-	for idx, tst := range obligationTests {
+	for idx, tst := range obligationsNodeTests {
 		var resp OPAResponse
 
 		err := json.Unmarshal([]byte(tst.regoRespJSON), &resp)
@@ -93,222 +82,12 @@ func TestOPAResponseObligations(t *testing.T) {
 		}
 
 		if actualVal != nil {
-			t.Logf("tst#%d: before sortBy1stElem: %#v", idx, actualVal)
-			actualVal.sortBy1stElem()
+			t.Logf("tst#%d: before DeepSort: %s", idx, actualVal)
+			actualVal.DeepSort()
 		}
 		if !reflect.DeepEqual(actualVal, tst.expectedVal) {
-			t.Errorf("tst#%d: expectedVal=%#v actualVal=%#v",
+			t.Errorf("tst#%d: expectedVal=%s actualVal=%s",
 				idx, tst.expectedVal, actualVal)
 		}
 	}
-}
-
-// sortBy1stElem sorts its list of slices by their first element,
-// used for deterministic testing output
-func (ob *ObligationsType) sortBy1stElem() {
-	sort.SliceStable(*ob, func(lhs, rhs int) bool {
-		if ob == nil || (*ob)[lhs] == nil || (*ob)[rhs] == nil ||
-			len((*ob)[lhs]) <= 0 || len((*ob)[rhs]) <= 0 {
-			return false
-		}
-		return (*ob)[lhs][0] < (*ob)[rhs][0]
-	})
-}
-
-var obligationTests = []struct {
-	expectedErr  error
-	regoRespJSON string
-	expectedVal  ObligationsType
-}{
-	{
-		expectedErr:  nil,
-		regoRespJSON: `{
-			"allow": true
-		}`,
-		expectedVal:  nil,
-	},
-	{
-		expectedErr:  ErrInvalidObligations,
-		regoRespJSON: `{
-			"allow": true,
-			"obligations": "bad obligations value"
-		}`,
-		expectedVal:  nil,
-	},
-	{
-		expectedErr:  ErrInvalidObligations,
-		regoRespJSON: `{
-			"allow": true,
-			"obligations": [ "bad obligations value" ]
-		}`,
-		expectedVal:  nil,
-	},
-	{
-		expectedErr:  ErrInvalidObligations,
-		regoRespJSON: `{
-			"allow": true,
-			"obligations": [ [ 3.14 ] ]
-		}`,
-		expectedVal:  nil,
-	},
-	{
-		expectedErr:  ErrInvalidObligations,
-		regoRespJSON: `{
-			"allow": true,
-			"obligations": { "policy1_guid": "bad obligations value" }
-		}`,
-		expectedVal:  nil,
-	},
-	{
-		expectedErr:  ErrInvalidObligations,
-		regoRespJSON: `{
-			"allow": true,
-			"obligations": { "bad_obligations_value": [ 3.14 ]}
-		}`,
-		expectedVal:  nil,
-	},
-	{
-		expectedErr:  ErrInvalidObligations,
-		regoRespJSON: `{
-			"allow": true,
-			"obligations": { "policy1_guid": { "stmt0": "bad obligations value" }}
-		}`,
-		expectedVal:  nil,
-	},
-	{
-		expectedErr:  nil,
-		regoRespJSON: `{
-			"allow": true,
-			"obligations": []
-		}`,
-		expectedVal:  ObligationsType{},
-	},
-	{
-		expectedErr:  nil,
-		regoRespJSON: `{
-			"allow": true,
-			"obligations": [ [], [] ]
-		}`,
-		expectedVal:  ObligationsType{},
-	},
-	{
-		expectedErr:  nil,
-		regoRespJSON: `{
-			"allow": true,
-			"obligations": [ [], [ "a" ] ]
-		}`,
-		expectedVal:  ObligationsType{
-			{ "a" },
-		},
-	},
-	{
-		expectedErr:  nil,
-		regoRespJSON: `{
-			"allow": true,
-			"obligations": [ [ "a", "b" ], [ "c" ] ]
-		}`,
-		expectedVal:  ObligationsType{
-			{ "a", "b" },
-			{ "c" },
-		},
-	},
-	{
-		expectedErr:  nil,
-		regoRespJSON: `{
-			"allow": true,
-			"obligations": {}
-		}`,
-		expectedVal:  ObligationsType{},
-	},
-	{
-		expectedErr:  nil,
-		regoRespJSON: `{
-			"allow": true,
-			"obligations": {
-				"policy1_guid": {},
-				"policy2_guid": {}
-			}
-		}`,
-		expectedVal:  ObligationsType{},
-	},
-	{
-		expectedErr:  nil,
-		regoRespJSON: `{
-			"allow": true,
-			"obligations": {
-				"policy1_guid": {},
-				"policy2_guid": {
-					"stmt1": []
-				}
-			}
-		}`,
-		expectedVal:  ObligationsType{},
-	},
-	{
-		expectedErr:  nil,
-		regoRespJSON: `{
-			"allow": true,
-			"obligations": {
-				"policy1_guid": {
-					"stmt0": []
-				},
-				"policy2_guid": {
-					"stmt1": []
-				}
-			}
-		}`,
-		expectedVal:  ObligationsType{},
-	},
-	{
-		expectedErr:  nil,
-		regoRespJSON: `{
-			"allow": true,
-			"obligations": {
-				"policy1_guid": {
-					"stmt0": [ "i", "j" ]
-				},
-				"policy2_guid": {}
-			}
-		}`,
-		expectedVal:  ObligationsType{
-			{ "i", "j" },
-		},
-	},
-	{
-		expectedErr:  nil,
-		regoRespJSON: `{
-			"allow": true,
-			"obligations": {
-				"policy1_guid": {
-					"stmt0": [ "i", "j", "k" ]
-				},
-				"policy2_guid": {
-					"stmt1": []
-				}
-			}
-		}`,
-		expectedVal:  ObligationsType{
-			{ "i", "j", "k" },
-		},
-	},
-	{
-		expectedErr:  nil,
-		regoRespJSON: `{
-			"allow": true,
-			"obligations": {
-				"policy1_guid": {
-					"stmt0": [ "a" ]
-				},
-				"policy2_guid": {
-					"stmt0": [ "b", "c" ],
-					"stmt1": [ "d" ]
-				}
-			}
-		}`,
-		expectedVal:  [][]string{
-			{ "a" },
-			{ "b", "c" },
-			{ "d" },
-		},
-	},
 }
