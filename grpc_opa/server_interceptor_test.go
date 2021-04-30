@@ -81,7 +81,7 @@ func TestMockOPA(t *testing.T) {
 	}{
 		{
 			code: codes.Internal,
-			fn: func(ctx context.Context, fullMethodName string, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
+			fn: func(ctx context.Context, fullMethodName string, request interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
 				return false, ctx, grpc.Errorf(codes.Internal, "boom")
 			},
 			errMsg: "boom",
@@ -102,11 +102,11 @@ func TestMockOPA(t *testing.T) {
 
 type mockAuthorizer struct {
 	DefaultAuthorizer
-	evaluate func(ctx context.Context, fullMethod string, opaEvaluator OpaEvaluator) (bool, context.Context, error)
+	evaluate func(ctx context.Context, fullMethod string, req interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error)
 }
 
-func (m *mockAuthorizer) Evaluate(ctx context.Context, fullMethod string, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
-	return m.evaluate(ctx, fullMethod, opaEvaluator)
+func (m *mockAuthorizer) Evaluate(ctx context.Context, fullMethod string, req interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
+	return m.evaluate(ctx, fullMethod, req, opaEvaluator)
 }
 
 func TestStreamServerInterceptor(t *testing.T) {
@@ -129,7 +129,7 @@ func TestStreamServerInterceptor(t *testing.T) {
 	}{
 		{
 			code: codes.Internal,
-			fn: func(ctx context.Context, fullMethodName string, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
+			fn: func(ctx context.Context, fullMethodName string, req interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
 				return false, ctx, grpc.Errorf(codes.Internal, "boom")
 			},
 			errMsg: "boom",
@@ -157,8 +157,8 @@ type mockAuthorizerWithAllowOpaEvaluator struct {
 	defAuther *DefaultAuthorizer
 }
 
-func (a *mockAuthorizerWithAllowOpaEvaluator) Evaluate(ctx context.Context, fullMethod string, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
-	return a.defAuther.Evaluate(ctx, fullMethod, opaEvaluator)
+func (a *mockAuthorizerWithAllowOpaEvaluator) Evaluate(ctx context.Context, fullMethod string, req interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
+	return a.defAuther.Evaluate(ctx, fullMethod, req, opaEvaluator)
 }
 
 func (m *mockAuthorizerWithAllowOpaEvaluator) OpaQuery(ctx context.Context, decisionDocument string, req, resp interface{}) error {
@@ -173,13 +173,13 @@ func newMockAuthorizerWithAllowOpaEvaluator(application string, opts ...Option) 
 
 type badDecisionInputer struct{}
 
-func (m *badDecisionInputer) GetDecisionInput(ctx context.Context, fullMethod string) (*DecisionInput, error) {
+func (m *badDecisionInputer) GetDecisionInput(ctx context.Context, fullMethod string, req interface{}) (*DecisionInput, error) {
 	return nil, fmt.Errorf("badDecisionInputer")
 }
 
 type jsonMarshalableInputer struct{}
 
-func (m *jsonMarshalableInputer) GetDecisionInput(ctx context.Context, fullMethod string) (*DecisionInput, error) {
+func (m *jsonMarshalableInputer) GetDecisionInput(ctx context.Context, fullMethod string, req interface{}) (*DecisionInput, error) {
 	var sealctx []interface{}
 	sealctx = append(sealctx, map[string]interface{}{
 		"id":   "guid1",
@@ -198,7 +198,7 @@ func (m *jsonMarshalableInputer) GetDecisionInput(ctx context.Context, fullMetho
 		},
 	})
 
-	inp, _ := defDecisionInputer.GetDecisionInput(ctx, fullMethod)
+	inp, _ := defDecisionInputer.GetDecisionInput(ctx, fullMethod, req)
 	inp.SealCtx = sealctx
 
 	//logrus.Debugf("inp=%+v", *inp)
@@ -207,11 +207,11 @@ func (m *jsonMarshalableInputer) GetDecisionInput(ctx context.Context, fullMetho
 
 type jsonNonMarshalableInputer struct{}
 
-func (m *jsonNonMarshalableInputer) GetDecisionInput(ctx context.Context, fullMethod string) (*DecisionInput, error) {
+func (m *jsonNonMarshalableInputer) GetDecisionInput(ctx context.Context, fullMethod string, req interface{}) (*DecisionInput, error) {
 	var sealctx []interface{}
 	sealctx = append(sealctx, nullClaimsVerifier) // nullClaimsVerifier is a non-json-marshalable fn)
 
-	inp, _ := defDecisionInputer.GetDecisionInput(ctx, fullMethod)
+	inp, _ := defDecisionInputer.GetDecisionInput(ctx, fullMethod, req)
 	inp.SealCtx = sealctx
 	//logrus.Debugf("inp=%+v", *inp)
 	return inp, nil
