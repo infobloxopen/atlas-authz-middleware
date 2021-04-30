@@ -55,7 +55,7 @@ type DecisionInput struct {
 type DecisionInputHandler interface {
 	// GetDecisionInput returns an app/service-specific DecisionInput.
 	// A nil DecisionInput should NOT be returned unless error.
-	GetDecisionInput(ctx context.Context, fullMethod string) (*DecisionInput, error)
+	GetDecisionInput(ctx context.Context, fullMethod string, request interface{}) (*DecisionInput, error)
 }
 
 // DefaultDecisionInputer is an example DecisionInputHandler that is used as default
@@ -64,7 +64,7 @@ type DefaultDecisionInputer struct{}
 // GetDecisionInput is an example DecisionInputHandler that returns some decision input
 // based on some incoming Context values.  App/services will most likely supply their
 // own DecisionInputHandler using WithDecisionInputHandler option.
-func (m *DefaultDecisionInputer) GetDecisionInput(ctx context.Context, fullMethod string) (*DecisionInput, error) {
+func (m *DefaultDecisionInputer) GetDecisionInput(ctx context.Context, fullMethod string, request interface{}) (*DecisionInput, error) {
 	var abacType string
 	if v, ok := ctx.Value(TypeKey).(string); ok {
 		abacType = v
@@ -94,21 +94,21 @@ type Authorizer interface {
 	// will be unmarshaled using JSON into the provided response.
 	// Evaluate returns true if the request is authorized. The context
 	// will be passed to subsequent HTTP Handler.
-	Evaluate(ctx context.Context, fullMethod string, opaEvaluator OpaEvaluator) (bool, context.Context, error)
+	Evaluate(ctx context.Context, fullMethod string, request interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error)
 
 	// OpaQuery executes query of the specified decisionDocument against OPA.
 	// If decisionDocument is "", then the query is executed against the default decision document configured in OPA.
 	OpaQuery(ctx context.Context, decisionDocument string, req, resp interface{}) error
 }
 
-type AuthorizeFn func(ctx context.Context, fullMethodName string, opaEvaluator OpaEvaluator) (bool, context.Context, error)
+type AuthorizeFn func(ctx context.Context, fullMethodName string, req interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error)
 
 func (a AuthorizeFn) OpaQuery(req, resp interface{}) error {
 	return nil
 }
 
-func (a AuthorizeFn) Evaluate(ctx context.Context, fullMethod string, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
-	return a(ctx, fullMethod, opaEvaluator)
+func (a AuthorizeFn) Evaluate(ctx context.Context, fullMethod string, request interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
+	return a(ctx, fullMethod, request, opaEvaluator)
 }
 
 func NewDefaultAuthorizer(application string, opts ...Option) *DefaultAuthorizer {
@@ -157,7 +157,7 @@ func parseEndpoint(fullMethod string) string {
 	return strings.Replace(endpoint, "/", ".", -1)
 }
 
-func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
+func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, request interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
 
 	logger := ctxlogrus.Extract(ctx).WithFields(log.Fields{
 		"application": a.application,
@@ -174,7 +174,7 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, opa
 		return false, ctx, fmt.Errorf("%q", errs)
 	}
 
-	request := Payload{
+	req := Payload{
 		Endpoint:    parseEndpoint(fullMethod),
 		FullMethod:  fullMethod,
 		Application: a.application,
@@ -182,7 +182,7 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, opa
 		JWT: redactJWT(rawJWT),
 	}
 
-	decisionInput, err := a.decisionInputHandler.GetDecisionInput(ctx, fullMethod)
+	decisionInput, err := a.decisionInputHandler.GetDecisionInput(ctx, fullMethod, request)
 	if decisionInput == nil || err != nil {
 		logger.WithFields(log.Fields{
 			"fullMethod": fullMethod,
@@ -190,9 +190,9 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, opa
 		return false, ctx, ErrInvalidArg
 	}
 	//logger.Debugf("decisionInput=%+v", *decisionInput)
-	request.DecisionInput = *decisionInput
+	req.DecisionInput = *decisionInput
 
-	reqJSON, err := json.Marshal(request)
+	reqJSON, err := json.Marshal(req)
 	if err != nil {
 		logger.WithFields(log.Fields{
 			"request": request,
