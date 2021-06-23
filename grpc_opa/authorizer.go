@@ -21,7 +21,6 @@ import (
 // ABACKey is a context.Context key type
 type ABACKey string
 type ObligationKey string
-type ObligationsType [][]string
 
 const (
 	REDACTED = "redacted"
@@ -39,7 +38,6 @@ var (
 	ErrForbidden          = status.Errorf(codes.PermissionDenied, "Request forbidden: not authorized")
 	ErrUnknown            = status.Errorf(codes.Unknown, "Unknown error")
 	ErrInvalidArg         = status.Errorf(codes.InvalidArgument, "Invalid argument")
-	ErrInvalidObligations = status.Errorf(codes.Internal, "Invalid obligations")
 )
 
 // DecisionInput is app/service-specific data supplied by app/service ABAC requests
@@ -323,87 +321,11 @@ func (o OPAResponse) Allow() bool {
 }
 
 // Obligations parses the returned obligations and returns them in standard format
-func (o OPAResponse) Obligations() (ObligationsType, error) {
-	if _, ok := o[string(ObKey)]; !ok {
-		return nil, nil
+func (o OPAResponse) Obligations() (*ObligationsNode, error) {
+	if obIfc, ok := o[string(ObKey)]; ok {
+		return parseOPAObligations(obIfc)
 	}
-
-	arrIfc, isArr := o[string(ObKey)].([]interface{})
-	mapIfc, isMap := o[string(ObKey)].(map[string]interface{})
-
-	if isArr {
-		return parseObligationsArray(arrIfc)
-	} else if isMap {
-		return parseObligationsMap(mapIfc)
-	}
-
-	return nil, ErrInvalidObligations
-}
-
-// obligations json.Unmarshal()'d as type:
-// []interface {}{[]interface {}{"ctx.metric == \"dhcp\""}}
-func parseObligationsArray(arrIfc []interface{}) (ObligationsType, error) {
-	result := ObligationsType{}
-
-	for _, subIfc := range arrIfc {
-		subResult := []string{}
-		subArrIfc, ok := subIfc.([]interface{})
-
-		if !ok {
-			return nil, ErrInvalidObligations
-		}
-
-		for _, itemIfc := range subArrIfc {
-			s, ok := itemIfc.(string)
-			if !ok {
-				return nil, ErrInvalidObligations
-			}
-			subResult = append(subResult, s)
-		}
-
-		if len(subResult) > 0 {
-			result = append(result, subResult)
-		}
-	}
-
-	return result, nil
-}
-
-// obligations json.Unmarshal()'d as type:
-// map[string]interface {}{"policy1_guid":map[string]interface {}{"stmt0":[]interface {}{"ctx.metric == \"dhcp\""}}}
-func parseObligationsMap(mapIfc map[string]interface{}) (ObligationsType, error) {
-	result := ObligationsType{}
-
-	for _, subIfc := range mapIfc {
-		subMapIfc, ok := subIfc.(map[string]interface{})
-
-		if !ok {
-			return nil, ErrInvalidObligations
-		}
-
-		for _, stmtIfc := range subMapIfc {
-			subResult := []string{}
-			subArrIfc, ok := stmtIfc.([]interface{})
-
-			if !ok {
-				return nil, ErrInvalidObligations
-			}
-
-			for _, itemIfc := range subArrIfc {
-				s, ok := itemIfc.(string)
-				if !ok {
-					return nil, ErrInvalidObligations
-				}
-				subResult = append(subResult, s)
-			}
-
-			if len(subResult) > 0 {
-				result = append(result, subResult)
-			}
-		}
-	}
-
-	return result, nil
+	return nil, nil
 }
 
 func redactJWT(jwt string) string {
