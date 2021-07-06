@@ -37,7 +37,7 @@ func UnaryServerInterceptor(application string, opts ...Option) grpc.UnaryServer
 		cfg.authorizer = []Authorizer{NewDefaultAuthorizer(application, opts...)}
 	}
 
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, grpcUnaryHandler grpc.UnaryHandler) (interface{}, error) {
+	return func(ctx context.Context, grpcReq interface{}, info *grpc.UnaryServerInfo, grpcUnaryHandler grpc.UnaryHandler) (interface{}, error) {
 		logger := ctxlogrus.Extract(ctx)
 
 		var (
@@ -47,7 +47,7 @@ func UnaryServerInterceptor(application string, opts ...Option) grpc.UnaryServer
 		)
 
 		for _, auther := range cfg.authorizer {
-			ok, newCtx, err = auther.Evaluate(ctx, info.FullMethod, req, auther.OpaQuery)
+			ok, newCtx, err = auther.Evaluate(ctx, info.FullMethod, grpcReq, auther.OpaQuery)
 			if err != nil {
 				logger.WithError(err).Errorf("unable_authorize %#v", auther)
 			}
@@ -66,7 +66,7 @@ func UnaryServerInterceptor(application string, opts ...Option) grpc.UnaryServer
 		}
 
 		// TODO: pass along authz information through context
-		return grpcUnaryHandler(newCtx, req)
+		return grpcUnaryHandler(newCtx, grpcReq)
 	}
 }
 
