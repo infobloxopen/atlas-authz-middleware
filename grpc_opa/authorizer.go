@@ -53,7 +53,7 @@ type DecisionInput struct {
 type DecisionInputHandler interface {
 	// GetDecisionInput returns an app/service-specific DecisionInput.
 	// A nil DecisionInput should NOT be returned unless error.
-	GetDecisionInput(ctx context.Context, fullMethod string, request interface{}) (*DecisionInput, error)
+	GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*DecisionInput, error)
 }
 
 // DefaultDecisionInputer is an example DecisionInputHandler that is used as default
@@ -62,7 +62,7 @@ type DefaultDecisionInputer struct{}
 // GetDecisionInput is an example DecisionInputHandler that returns some decision input
 // based on some incoming Context values.  App/services will most likely supply their
 // own DecisionInputHandler using WithDecisionInputHandler option.
-func (m *DefaultDecisionInputer) GetDecisionInput(ctx context.Context, fullMethod string, request interface{}) (*DecisionInput, error) {
+func (m *DefaultDecisionInputer) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*DecisionInput, error) {
 	var abacType string
 	if v, ok := ctx.Value(TypeKey).(string); ok {
 		abacType = v
@@ -83,30 +83,30 @@ func (m *DefaultDecisionInputer) GetDecisionInput(ctx context.Context, fullMetho
 var defDecisionInputer = new(DefaultDecisionInputer)
 
 // OpaEvaluator implements calling OPA with a request and receiving the raw response
-type OpaEvaluator func(ctx context.Context, decisionDocument string, req, resp interface{}) error
+type OpaEvaluator func(ctx context.Context, decisionDocument string, opaReq, opaResp interface{}) error
 
 // Authorizer interface is implemented for making arbitrary requests to Opa.
 type Authorizer interface {
-	// Evaluate is called with the request's method passing the request Context.
+	// Evaluate is called with the grpc request's method passing the grpc request Context.
 	// If the handler is executed, the request will be sent to Opa. Opa's response
 	// will be unmarshaled using JSON into the provided response.
 	// Evaluate returns true if the request is authorized. The context
 	// will be passed to subsequent HTTP Handler.
-	Evaluate(ctx context.Context, fullMethod string, request interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error)
+	Evaluate(ctx context.Context, fullMethod string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error)
 
 	// OpaQuery executes query of the specified decisionDocument against OPA.
 	// If decisionDocument is "", then the query is executed against the default decision document configured in OPA.
-	OpaQuery(ctx context.Context, decisionDocument string, req, resp interface{}) error
+	OpaQuery(ctx context.Context, decisionDocument string, opaReq, opaResp interface{}) error
 }
 
-type AuthorizeFn func(ctx context.Context, fullMethodName string, req interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error)
+type AuthorizeFn func(ctx context.Context, fullMethodName string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error)
 
-func (a AuthorizeFn) OpaQuery(req, resp interface{}) error {
+func (a AuthorizeFn) OpaQuery(opaReq, opaResp interface{}) error {
 	return nil
 }
 
-func (a AuthorizeFn) Evaluate(ctx context.Context, fullMethod string, request interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
-	return a(ctx, fullMethod, request, opaEvaluator)
+func (a AuthorizeFn) Evaluate(ctx context.Context, fullMethod string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
+	return a(ctx, fullMethod, grpcReq, opaEvaluator)
 }
 
 func NewDefaultAuthorizer(application string, opts ...Option) *DefaultAuthorizer {
@@ -155,7 +155,7 @@ func parseEndpoint(fullMethod string) string {
 	return strings.Replace(endpoint, "/", ".", -1)
 }
 
-func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, request interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
+func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
 
 	logger := ctxlogrus.Extract(ctx).WithFields(log.Fields{
 		"application": a.application,
@@ -172,7 +172,7 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, req
 		return false, ctx, fmt.Errorf("%q", errs)
 	}
 
-	req := Payload{
+	opaReq := Payload{
 		Endpoint:    parseEndpoint(fullMethod),
 		FullMethod:  fullMethod,
 		Application: a.application,
@@ -180,7 +180,7 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, req
 		JWT: redactJWT(rawJWT),
 	}
 
-	decisionInput, err := a.decisionInputHandler.GetDecisionInput(ctx, fullMethod, request)
+	decisionInput, err := a.decisionInputHandler.GetDecisionInput(ctx, fullMethod, grpcReq)
 	if decisionInput == nil || err != nil {
 		logger.WithFields(log.Fields{
 			"fullMethod": fullMethod,
@@ -188,34 +188,34 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, req
 		return false, ctx, ErrInvalidArg
 	}
 	//logger.Debugf("decisionInput=%+v", *decisionInput)
-	req.DecisionInput = *decisionInput
+	opaReq.DecisionInput = *decisionInput
 
-	reqJSON, err := json.Marshal(req)
+	opaReqJSON, err := json.Marshal(opaReq)
 	if err != nil {
 		logger.WithFields(log.Fields{
-			"request": request,
-		}).WithError(err).Error("request_json_marshal")
+			"opaReq": opaReq,
+		}).WithError(err).Error("opa_request_json_marshal")
 		return false, ctx, ErrInvalidArg
 	}
 
 	now := time.Now()
 	logger.WithFields(log.Fields{
-		"request": request,
-		//"requestJSON": string(reqJSON),
-	}).Debug("authorization_request")
+		"opaReq": opaReq,
+		//"opaReqJSON": string(opaReqJSON),
+	}).Debug("opa_authorization_request")
 
 	// To enable tracing, the context must have a tracer attached
 	// to it. See the tracing documentation on how to do this.
 	ctx, span := trace.StartSpan(ctx, fmt.Sprint(SERVICENAME, fullMethod))
 	{
 		span.Annotate([]trace.Attribute{
-			trace.StringAttribute("in", string(reqJSON)),
+			trace.StringAttribute("in", string(opaReqJSON)),
 		}, "in")
 	}
 	// FIXME: perhaps only inject these fields if this is the default handler
 
-	var response OPAResponse
-	err = opaEvaluator(ctxlogrus.ToContext(ctx, logger), decisionInput.DecisionDocument, request, &response)
+	var opaResp OPAResponse
+	err = opaEvaluator(ctxlogrus.ToContext(ctx, logger), decisionInput.DecisionDocument, opaReq, &opaResp)
 	// Metrics, logging, tracing handler
 	defer func() {
 		// opencensus Status is based on gRPC status codes
@@ -227,48 +227,48 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, req
 		})
 		span.End()
 		logger.WithFields(log.Fields{
-			"response": response,
-			"elapsed":  time.Since(now),
+			"opaResp": opaResp,
+			"elapsed": time.Since(now),
 		}).Debug("authorization_result")
 	}()
 	if err != nil {
 		return false, ctx, err
 	}
 
-	// Log non-err responses
+	// Log non-err opa responses
 	{
-		raw, _ := json.Marshal(response)
+		raw, _ := json.Marshal(opaResp)
 		span.Annotate([]trace.Attribute{
 			trace.StringAttribute("out", string(raw)),
 		}, "out")
 	}
 
 	// adding obligations data to context if present
-	ctx, err = addObligations(ctx, response)
+	ctx, err = addObligations(ctx, opaResp)
 	if err != nil {
-		logger.WithField("response", fmt.Sprintf("%#v", response)).WithError(err).Error("parse_obligations_error")
+		logger.WithField("opaResp", fmt.Sprintf("%#v", opaResp)).WithError(err).Error("parse_obligations_error")
 	}
 
-	if !response.Allow() {
+	if !opaResp.Allow() {
 		return false, ctx, ErrForbidden
 	}
 
 	return true, ctx, nil
 }
 
-func (a *DefaultAuthorizer) OpaQuery(ctx context.Context, decisionDocument string, req, resp interface{}) error {
+func (a *DefaultAuthorizer) OpaQuery(ctx context.Context, decisionDocument string, opaReq, opaResp interface{}) error {
 	logger := ctxlogrus.Extract(ctx)
 
 	// Empty document path is intentional
 	// DO NOT hardcode a path here
-	err := a.clienter.CustomQuery(ctx, decisionDocument, req, resp)
+	err := a.clienter.CustomQuery(ctx, decisionDocument, opaReq, opaResp)
 	// TODO: allow overriding logger
 	if err != nil {
 		grpcErr := opa_client.GRPCError(err)
-		logger.WithError(grpcErr).Error("policy_engine_request_error")
+		logger.WithError(grpcErr).Error("opa_policy_engine_request_error")
 		return opaqueError(grpcErr)
 	} else {
-		logger.WithField("response", resp).Debug("policy_engine_response")
+		logger.WithField("opaResp", opaResp).Debug("opa_policy_engine_response")
 	}
 	return err
 }
@@ -336,8 +336,8 @@ func redactJWT(jwt string) string {
 	return strings.Join(parts, ".")
 }
 
-func addObligations(ctx context.Context, response OPAResponse) (context.Context, error) {
-	ob, err := response.Obligations()
+func addObligations(ctx context.Context, opaResp OPAResponse) (context.Context, error) {
+	ob, err := opaResp.Obligations()
 	if ob != nil {
 		ctx = context.WithValue(ctx, ObKey, ob)
 	}

@@ -28,17 +28,17 @@ func Test_parseEndpoint(t *testing.T) {
 func Test_addObligations(t *testing.T) {
 	for idx, tst := range obligationsNodeTests {
 		ctx := context.Background()
-		var resp OPAResponse
+		var opaResp OPAResponse
 
-		err := json.Unmarshal([]byte(tst.regoRespJSON), &resp)
+		err := json.Unmarshal([]byte(tst.regoRespJSON), &opaResp)
 		if err != nil {
 			t.Errorf("tst#%d: err=%s trying to json.Unmarshal: %s",
 				idx, err, tst.regoRespJSON)
 			continue
 		}
 
-		t.Logf("tst#%d: resp=%#v", idx, resp)
-		newCtx, actualErr := addObligations(ctx, resp)
+		t.Logf("tst#%d: opaResp=%#v", idx, opaResp)
+		newCtx, actualErr := addObligations(ctx, opaResp)
 
 		if actualErr != tst.expectedErr {
 			t.Errorf("tst#%d: expectedErr=%s actualErr=%s",
@@ -64,17 +64,17 @@ func Test_addObligations(t *testing.T) {
 
 func TestOPAResponseObligations(t *testing.T) {
 	for idx, tst := range obligationsNodeTests {
-		var resp OPAResponse
+		var opaResp OPAResponse
 
-		err := json.Unmarshal([]byte(tst.regoRespJSON), &resp)
+		err := json.Unmarshal([]byte(tst.regoRespJSON), &opaResp)
 		if err != nil {
 			t.Errorf("tst#%d: err=%s trying to json.Unmarshal: %s",
 				idx, err, tst.regoRespJSON)
 			continue
 		}
 
-		t.Logf("tst#%d: resp=%#v", idx, resp)
-		actualVal, actualErr := resp.Obligations()
+		t.Logf("tst#%d: opaResp=%#v", idx, opaResp)
+		actualVal, actualErr := opaResp.Obligations()
 
 		if actualErr != tst.expectedErr {
 			t.Errorf("tst#%d: expectedErr=%s actualErr=%s",

@@ -20,14 +20,17 @@ import (
 	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
 )
 
+type TestingTContextKeyType string
+const TestingTContextKey = TestingTContextKeyType("*testing.T")
+
 var netDialErr = &net.OpError{Op: "dial", Net: "tcp", Err: syscall.ECONNREFUSED}
 
 type connFailTransport struct {
-	req *http.Request
+	httpReq *http.Request
 }
 
-func (t *connFailTransport) RoundTrip(req *http.Request) (resp *http.Response, err error) {
-	t.req = req
+func (t *connFailTransport) RoundTrip(httpReq *http.Request) (httpResp *http.Response, err error) {
+	t.httpReq = httpReq
 	return nil, netDialErr
 }
 
@@ -42,7 +45,7 @@ func nullClaimsVerifier([]string, []string) (string, []error) {
 func TestConnFailure(t *testing.T) {
 	claimsVerifier = nullClaimsVerifier
 
-	grpcUnaryHandler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	grpcUnaryHandler := func(ctx context.Context, grpcReq interface{}) (interface{}, error) {
 		return nil, nil
 	}
 	interceptor := UnaryServerInterceptor("app", WithHTTPClient(&http.Client{
@@ -50,10 +53,11 @@ func TestConnFailure(t *testing.T) {
 	}))
 
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(3*time.Second))
+	ctx = context.WithValue(ctx, TestingTContextKey, t)
 	defer cancel()
-	resp, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{FullMethod: "FakeMethod"}, grpcUnaryHandler)
-	if resp != nil {
-		t.Errorf("unexpected resp: %#v", resp)
+	grpcResp, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{FullMethod: "FakeMethod"}, grpcUnaryHandler)
+	if grpcResp != nil {
+		t.Errorf("unexpected grpcResp: %#v", grpcResp)
 	}
 
 	if e := opa_client.ErrServiceUnavailable; !errors.Is(err, e) {
@@ -64,7 +68,7 @@ func TestConnFailure(t *testing.T) {
 func TestMockOPA(t *testing.T) {
 	claimsVerifier = nullClaimsVerifier
 
-	grpcUnaryHandler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	grpcUnaryHandler := func(ctx context.Context, grpcReq interface{}) (interface{}, error) {
 		return nil, nil
 	}
 
@@ -73,6 +77,7 @@ func TestMockOPA(t *testing.T) {
 
 	deadline := time.Now().Add(3 * time.Second)
 	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	ctx = context.WithValue(ctx, TestingTContextKey, t)
 	defer cancel()
 	testMap := []struct {
 		code   codes.Code
@@ -81,7 +86,7 @@ func TestMockOPA(t *testing.T) {
 	}{
 		{
 			code: codes.Internal,
-			fn: func(ctx context.Context, fullMethodName string, request interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
+			fn: func(ctx context.Context, fullMethodName string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
 				return false, ctx, grpc.Errorf(codes.Internal, "boom")
 			},
 			errMsg: "boom",
@@ -102,11 +107,11 @@ func TestMockOPA(t *testing.T) {
 
 type mockAuthorizer struct {
 	DefaultAuthorizer
-	evaluate func(ctx context.Context, fullMethod string, req interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error)
+	evaluate func(ctx context.Context, fullMethod string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error)
 }
 
-func (m *mockAuthorizer) Evaluate(ctx context.Context, fullMethod string, req interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
-	return m.evaluate(ctx, fullMethod, req, opaEvaluator)
+func (m *mockAuthorizer) Evaluate(ctx context.Context, fullMethod string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
+	return m.evaluate(ctx, fullMethod, grpcReq, opaEvaluator)
 }
 
 func TestStreamServerInterceptor(t *testing.T) {
@@ -121,6 +126,7 @@ func TestStreamServerInterceptor(t *testing.T) {
 
 	deadline := time.Now().Add(3 * time.Second)
 	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	ctx = context.WithValue(ctx, TestingTContextKey, t)
 	defer cancel()
 	testMap := []struct {
 		code   codes.Code
@@ -129,7 +135,7 @@ func TestStreamServerInterceptor(t *testing.T) {
 	}{
 		{
 			code: codes.Internal,
-			fn: func(ctx context.Context, fullMethodName string, req interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
+			fn: func(ctx context.Context, fullMethodName string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
 				return false, ctx, grpc.Errorf(codes.Internal, "boom")
 			},
 			errMsg: "boom",
@@ -157,12 +163,20 @@ type mockAuthorizerWithAllowOpaEvaluator struct {
 	defAuther *DefaultAuthorizer
 }
 
-func (a *mockAuthorizerWithAllowOpaEvaluator) Evaluate(ctx context.Context, fullMethod string, req interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
-	return a.defAuther.Evaluate(ctx, fullMethod, req, opaEvaluator)
+func (a *mockAuthorizerWithAllowOpaEvaluator) Evaluate(ctx context.Context, fullMethod string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
+	return a.defAuther.Evaluate(ctx, fullMethod, grpcReq, opaEvaluator)
 }
 
-func (m *mockAuthorizerWithAllowOpaEvaluator) OpaQuery(ctx context.Context, decisionDocument string, req, resp interface{}) error {
-	return json.Unmarshal([]byte(`{"allow": true}`), resp)
+func (m *mockAuthorizerWithAllowOpaEvaluator) OpaQuery(ctx context.Context, decisionDocument string, opaReq, opaResp interface{}) error {
+	t, _ := ctx.Value(TestingTContextKey).(*testing.T)
+	_, ok := opaReq.(Payload)
+	allow := "true"
+	if !ok {
+		allow = "false"
+		t.Errorf("invalid opa payload (type: %T)", opaReq)
+	}
+	respJSON := fmt.Sprintf(`{"allow": %s}`, allow)
+	return json.Unmarshal([]byte(respJSON), opaResp)
 }
 
 func newMockAuthorizerWithAllowOpaEvaluator(application string, opts ...Option) *mockAuthorizerWithAllowOpaEvaluator {
@@ -173,13 +187,13 @@ func newMockAuthorizerWithAllowOpaEvaluator(application string, opts ...Option) 
 
 type badDecisionInputer struct{}
 
-func (m *badDecisionInputer) GetDecisionInput(ctx context.Context, fullMethod string, req interface{}) (*DecisionInput, error) {
+func (m *badDecisionInputer) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*DecisionInput, error) {
 	return nil, fmt.Errorf("badDecisionInputer")
 }
 
 type jsonMarshalableInputer struct{}
 
-func (m *jsonMarshalableInputer) GetDecisionInput(ctx context.Context, fullMethod string, req interface{}) (*DecisionInput, error) {
+func (m *jsonMarshalableInputer) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*DecisionInput, error) {
 	var sealctx []interface{}
 	sealctx = append(sealctx, map[string]interface{}{
 		"id":   "guid1",
@@ -198,7 +212,7 @@ func (m *jsonMarshalableInputer) GetDecisionInput(ctx context.Context, fullMetho
 		},
 	})
 
-	inp, _ := defDecisionInputer.GetDecisionInput(ctx, fullMethod, req)
+	inp, _ := defDecisionInputer.GetDecisionInput(ctx, fullMethod, grpcReq)
 	inp.SealCtx = sealctx
 
 	//logrus.Debugf("inp=%+v", *inp)
@@ -207,11 +221,11 @@ func (m *jsonMarshalableInputer) GetDecisionInput(ctx context.Context, fullMetho
 
 type jsonNonMarshalableInputer struct{}
 
-func (m *jsonNonMarshalableInputer) GetDecisionInput(ctx context.Context, fullMethod string, req interface{}) (*DecisionInput, error) {
+func (m *jsonNonMarshalableInputer) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*DecisionInput, error) {
 	var sealctx []interface{}
 	sealctx = append(sealctx, nullClaimsVerifier) // nullClaimsVerifier is a non-json-marshalable fn)
 
-	inp, _ := defDecisionInputer.GetDecisionInput(ctx, fullMethod, req)
+	inp, _ := defDecisionInputer.GetDecisionInput(ctx, fullMethod, grpcReq)
 	inp.SealCtx = sealctx
 	//logrus.Debugf("inp=%+v", *inp)
 	return inp, nil
@@ -254,7 +268,7 @@ func TestDecisionInput(t *testing.T) {
 	}
 
 	for _, tm := range testMap {
-		grpcUnaryHandler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		grpcUnaryHandler := func(ctx context.Context, grpcReq interface{}) (interface{}, error) {
 			return nil, nil
 		}
 
@@ -267,6 +281,7 @@ func TestDecisionInput(t *testing.T) {
 		}
 
 		ctx := context.Background()
+		ctx = context.WithValue(ctx, TestingTContextKey, t)
 		ctx = context.WithValue(ctx, TypeKey, tm.abacType)
 		ctx = context.WithValue(ctx, VerbKey, tm.abacVerb)
 		ctx = ctxlogrus.ToContext(ctx, logrus.NewEntry(logrus.StandardLogger()))
