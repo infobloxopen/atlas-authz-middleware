@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
 	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
@@ -25,44 +24,12 @@ type key string
 
 // UnaryServerInterceptor returns a new unary client interceptor that optionally logs the execution of external gRPC calls.
 func UnaryServerInterceptor(application string, opts ...Option) grpc.UnaryServerInterceptor {
-	cfg := &Config{
-		address: opa_client.DefaultAddress,
-	}
-	for _, opt := range opts {
-		opt(cfg)
-	}
-
-	if cfg.authorizer == nil {
-		logrus.Info("authorizers empty, using default authorizer")
-		cfg.authorizer = []Authorizer{NewDefaultAuthorizer(application, opts...)}
-	}
+	cfg := NewAuthorizationConfigUnary(application, opts...)
 
 	return func(ctx context.Context, grpcReq interface{}, info *grpc.UnaryServerInfo, grpcUnaryHandler grpc.UnaryHandler) (interface{}, error) {
-		logger := ctxlogrus.Extract(ctx)
-
-		var (
-			ok     bool
-			newCtx context.Context
-			err    error
-		)
-
-		for _, auther := range cfg.authorizer {
-			ok, newCtx, err = auther.Evaluate(ctx, info.FullMethod, grpcReq, auther.OpaQuery)
-			if err != nil {
-				logger.WithError(err).Errorf("unable_authorize %#v", auther)
-			}
-			if ok {
-				break
-			}
-		}
-
-		if err != nil {
-			return nil, err
-		}
-
-		if !ok {
-			logger.WithError(opa_client.ErrUndefined).Error("policy engine returned undefined response")
-			return nil, opa_client.ErrUndefined
+		newCtx, err := AffirmAuthorizationUnary(ctx, cfg, info.FullMethod, grpcReq)
+		if newCtx == nil || err != nil {
+			return newCtx, err
 		}
 
 		// TODO: pass along authz information through context

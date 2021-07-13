@@ -216,6 +216,7 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 
 	var opaResp OPAResponse
 	err = opaEvaluator(ctxlogrus.ToContext(ctx, logger), decisionInput.DecisionDocument, opaReq, &opaResp)
+
 	// Metrics, logging, tracing handler
 	defer func() {
 		// opencensus Status is based on gRPC status codes
@@ -342,4 +343,56 @@ func addObligations(ctx context.Context, opaResp OPAResponse) (context.Context, 
 		ctx = context.WithValue(ctx, ObKey, ob)
 	}
 	return ctx, err
+}
+
+// NewAuthorizationConfigUnary returns new unary config for authorization requests
+func NewAuthorizationConfigUnary(application string, opts ...Option) *Config {
+	cfg := &Config{
+		address: opa_client.DefaultAddress,
+	}
+
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	if cfg.authorizer == nil {
+		log.Info("authorizers empty, using default authorizer")
+		cfg.authorizer = []Authorizer{NewDefaultAuthorizer(application, opts...)}
+	}
+
+	return cfg
+}
+
+// AffirmAuthorizationUnary makes an authz request to sidecar-OPA
+// If authorization allowed, error returned is nil,
+// and a new context is returned containing any obligations
+// which caller must further evaluate if required
+func AffirmAuthorizationUnary(ctx context.Context, cfg *Config, fullMethod string, grpcReq interface{}) (context.Context, error) {
+	logger := ctxlogrus.Extract(ctx)
+	var (
+		ok     bool
+		newCtx context.Context
+		err    error
+	)
+
+	for _, auther := range cfg.authorizer {
+		ok, newCtx, err = auther.Evaluate(ctx, fullMethod, grpcReq, auther.OpaQuery)
+		if err != nil {
+			logger.WithError(err).Errorf("unable_authorize %#v", auther)
+		}
+		if ok {
+			break
+		}
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !ok {
+		logger.WithError(opa_client.ErrUndefined).Error("policy engine returned undefined response")
+		return nil, opa_client.ErrUndefined
+	}
+
+	return newCtx, nil
 }
