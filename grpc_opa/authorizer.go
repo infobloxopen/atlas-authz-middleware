@@ -35,6 +35,7 @@ var (
 )
 
 var (
+	ErrNoAuthorizer       = status.Errorf(codes.Internal, "Internal error: no authorizer configured")
 	ErrForbidden          = status.Errorf(codes.PermissionDenied, "Request forbidden: not authorized")
 	ErrUnknown            = status.Errorf(codes.Unknown, "Unknown error")
 	ErrInvalidArg         = status.Errorf(codes.InvalidArgument, "Invalid argument")
@@ -363,17 +364,23 @@ func NewAuthorizationConfigUnary(application string, opts ...Option) *Config {
 	return cfg
 }
 
-// AffirmAuthorizationUnary makes an authz request to sidecar-OPA
-// If authorization allowed, error returned is nil,
+// AffirmAuthorizationUnary makes an authz request to sidecar-OPA.
+// If authorization is permitted, error returned is nil,
 // and a new context is returned containing any obligations
-// which caller must further evaluate if required
-func AffirmAuthorizationUnary(ctx context.Context, cfg *Config, fullMethod string, grpcReq interface{}) (context.Context, error) {
+// which caller must further evaluate if required.
+func (cfg *Config) AffirmAuthorizationUnary(ctx context.Context, fullMethod string, grpcReq interface{}) (context.Context, error) {
 	logger := ctxlogrus.Extract(ctx)
 	var (
 		ok     bool
 		newCtx context.Context
 		err    error
 	)
+
+	if cfg.authorizer == nil {
+		err = ErrNoAuthorizer
+		logger.WithError(err).Error(err.Error())
+		return nil, err
+	}
 
 	for _, auther := range cfg.authorizer {
 		ok, newCtx, err = auther.Evaluate(ctx, fullMethod, grpcReq, auther.OpaQuery)
@@ -390,8 +397,9 @@ func AffirmAuthorizationUnary(ctx context.Context, cfg *Config, fullMethod strin
 	}
 
 	if !ok {
-		logger.WithError(opa_client.ErrUndefined).Error("policy engine returned undefined response")
-		return nil, opa_client.ErrUndefined
+		err = opa_client.ErrUndefined
+		logger.WithError(err).Error("policy engine returned undefined response")
+		return nil, err
 	}
 
 	return newCtx, nil

@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
 )
@@ -24,6 +25,7 @@ type TestingTContextKeyType string
 const TestingTContextKey = TestingTContextKeyType("*testing.T")
 
 var netDialErr = &net.OpError{Op: "dial", Net: "tcp", Err: syscall.ECONNREFUSED}
+var ErrBoom    = status.Errorf(codes.Internal, "boom")
 
 type connFailTransport struct {
 	httpReq *http.Request
@@ -102,6 +104,58 @@ func TestMockOPA(t *testing.T) {
 		if e := tm.errMsg; e != grpc.ErrorDesc(err) {
 			t.Errorf("got: %s wanted: %s", err, e)
 		}
+	}
+}
+
+func TestAffirmAuthorizationUnary(t *testing.T) {
+	claimsVerifier = nullClaimsVerifier
+
+	testMap := []struct {
+		fn          AuthorizeFn
+		expectedErr error
+	}{
+		{
+			fn: func(ctx context.Context, fullMethodName string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
+				return false, ctx, ErrBoom
+			},
+			expectedErr: ErrBoom,
+		},
+		{
+			fn: func(ctx context.Context, fullMethodName string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
+				return true, ctx, nil
+			},
+			expectedErr: nil,
+		},
+		{
+			fn: nil,
+			expectedErr: ErrNoAuthorizer,
+		},
+	}
+
+	ctx := context.WithValue(context.Background(), TestingTContextKey, t)
+	mock := new(mockAuthorizer)
+	cfg := NewAuthorizationConfigUnary("app", WithAuthorizer(mock))
+
+	for nth, tm := range testMap {
+		mock.evaluate = tm.fn
+
+		saved_authorizer := cfg.authorizer
+		if tm.fn == nil {
+			cfg.authorizer = nil
+		}
+
+		resultCtx, resultErr := cfg.AffirmAuthorizationUnary(ctx, "FakeMethod", nil)
+		if resultErr != tm.expectedErr {
+			t.Errorf("%d: got error: %s, wanted error: %s", nth, resultErr, tm.expectedErr)
+		}
+		if resultErr == nil && resultCtx == nil {
+			t.Errorf("%d: returned ctx should not be nil if no err returned", nth)
+		}
+		if resultErr != nil && resultCtx != nil {
+			t.Errorf("%d: returned ctx should be nil if err returned", nth)
+		}
+
+		cfg.authorizer = saved_authorizer
 	}
 }
 

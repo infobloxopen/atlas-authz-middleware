@@ -27,7 +27,7 @@ func UnaryServerInterceptor(application string, opts ...Option) grpc.UnaryServer
 	cfg := NewAuthorizationConfigUnary(application, opts...)
 
 	return func(ctx context.Context, grpcReq interface{}, info *grpc.UnaryServerInfo, grpcUnaryHandler grpc.UnaryHandler) (interface{}, error) {
-		newCtx, err := AffirmAuthorizationUnary(ctx, cfg, info.FullMethod, grpcReq)
+		newCtx, err := cfg.AffirmAuthorizationUnary(ctx, info.FullMethod, grpcReq)
 		if newCtx == nil || err != nil {
 			return newCtx, err
 		}
