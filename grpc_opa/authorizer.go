@@ -110,16 +110,22 @@ func (a AuthorizeFn) Evaluate(ctx context.Context, fullMethod string, grpcReq in
 	return a(ctx, fullMethod, grpcReq, opaEvaluator)
 }
 
-func NewDefaultAuthorizer(application string, opts ...Option) *DefaultAuthorizer {
+func newConfig(opts ...Option) *Config {
 	cfg := &Config{
 		address:              opa_client.DefaultAddress,
 		decisionInputHandler: defDecisionInputer,
 	}
+
 	for _, opt := range opts {
 		opt(cfg)
 	}
 
 	//log.Debugf("cfg=%+v", *cfg)
+	return cfg
+}
+
+func NewDefaultAuthorizer(application string, opts ...Option) *DefaultAuthorizer {
+	cfg := newConfig(opts...)
 
 	a := DefaultAuthorizer{
 		clienter:             opa_client.New(cfg.address, opa_client.WithHTTPClient(cfg.httpCli)),
@@ -348,13 +354,7 @@ func addObligations(ctx context.Context, opaResp OPAResponse) (context.Context, 
 
 // NewAuthorizationConfigUnary returns new unary config for authorization requests
 func NewAuthorizationConfigUnary(application string, opts ...Option) *Config {
-	cfg := &Config{
-		address: opa_client.DefaultAddress,
-	}
-
-	for _, opt := range opts {
-		opt(cfg)
-	}
+	cfg := newConfig(opts...)
 
 	if cfg.authorizer == nil {
 		log.Info("authorizers empty, using default authorizer")

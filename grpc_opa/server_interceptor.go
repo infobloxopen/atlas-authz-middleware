@@ -40,12 +40,7 @@ func UnaryServerInterceptor(application string, opts ...Option) grpc.UnaryServer
 // StreamServerInterceptor returns a new Stream client interceptor that optionally logs the execution of external gRPC calls.
 func StreamServerInterceptor(application string, opts ...Option) grpc.StreamServerInterceptor {
 
-	cfg := &Config{
-		address: opa_client.DefaultAddress,
-	}
-	for _, opt := range opts {
-		opt(cfg)
-	}
+	cfg := newConfig(opts...)
 
 	if cfg.authorizer == nil {
 		cfg.authorizer = []Authorizer{&DefaultAuthorizer{
