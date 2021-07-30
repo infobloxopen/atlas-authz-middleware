@@ -3,6 +3,8 @@ package grpc_opa_middleware
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"strings"
 	"reflect"
 	"testing"
@@ -88,6 +90,76 @@ func TestOPAResponseObligations(t *testing.T) {
 		if !reflect.DeepEqual(actualVal, tst.expectedVal) {
 			t.Errorf("tst#%d: expectedVal=%s actualVal=%s",
 				idx, tst.expectedVal, actualVal)
+		}
+	}
+}
+
+func TestAffirmAuthorization(t *testing.T) {
+	ErrBoom := errors.New("boom")
+	claimsVerifier = nullClaimsVerifier
+
+	testMap := []struct {
+		name        string
+		opaEvaltor  OpaEvaluator
+		expectCtx   bool
+		expectedErr error
+	}{
+		{
+			name: "authz permitted, nil opa error",
+			opaEvaltor: func(ctx context.Context, decisionDocument string, opaReq, opaResp interface{}) error {
+				respJSON := fmt.Sprintf(`{"allow": %s}`, "true")
+				json.Unmarshal([]byte(respJSON), opaResp)
+				return nil
+			},
+			expectCtx:   true,
+			expectedErr: nil,
+		},
+		{
+			name: "authz denied, nil opa error",
+			opaEvaltor: func(ctx context.Context, decisionDocument string, opaReq, opaResp interface{}) error {
+				respJSON := fmt.Sprintf(`{"allow": %s}`, "false")
+				json.Unmarshal([]byte(respJSON), opaResp)
+				return nil
+			},
+			expectCtx:   false,
+			expectedErr: ErrForbidden,
+		},
+		{
+			name: "bogus opa response, nil opa error",
+			opaEvaltor: func(ctx context.Context, decisionDocument string, opaReq, opaResp interface{}) error {
+				respJSON := fmt.Sprintf(`{"bogus_opa_response_field": %s}`, "true")
+				json.Unmarshal([]byte(respJSON), opaResp)
+				return nil
+			},
+			expectCtx:   false,
+			expectedErr: ErrForbidden,
+		},
+		{
+			name: "opa error",
+			opaEvaltor: func(ctx context.Context, decisionDocument string, opaReq, opaResp interface{}) error {
+				respJSON := fmt.Sprintf(`{"allow": %s}`, "true")
+				json.Unmarshal([]byte(respJSON), opaResp)
+				return ErrBoom
+			},
+			expectCtx:   false,
+			expectedErr: ErrBoom,
+		},
+	}
+
+	ctx := context.WithValue(context.Background(), TestingTContextKey, t)
+
+	for nth, tm := range testMap {
+		auther := NewDefaultAuthorizer("app", WithOpaEvaluator(tm.opaEvaltor))
+
+		resultCtx, resultErr := auther.AffirmAuthorization(ctx, "FakeMethod", nil)
+		if resultErr != tm.expectedErr {
+			t.Errorf("%d: %q: got error: %s, wanted error: %s", nth, tm.name, resultErr, tm.expectedErr)
+		}
+		if resultErr == nil && resultCtx == nil {
+			t.Errorf("%d: %q: returned ctx should not be nil if no err returned", nth, tm.name)
+		}
+		if resultErr != nil && resultCtx != nil {
+			t.Errorf("%d: %q: returned ctx should be nil if err returned", nth, tm.name)
 		}
 	}
 }

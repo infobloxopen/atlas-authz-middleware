@@ -22,6 +22,14 @@ func WithHTTPClient(client *http.Client) Option {
 	}
 }
 
+// WithOpaEvaluator overrides the OpaEvaluator use to
+// evaluate authorization against OPA.
+func WithOpaEvaluator(opaEvaluator OpaEvaluator) Option {
+	return func(c *Config) {
+		c.opaEvaluator = opaEvaluator
+	}
+}
+
 // WithAuthorizer overrides the request/response
 // processing of OPA. Multiple authorizers can be passed
 func WithAuthorizer(auther ...Authorizer) Option {

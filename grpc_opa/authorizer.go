@@ -122,6 +122,7 @@ func NewDefaultAuthorizer(application string, opts ...Option) *DefaultAuthorizer
 
 	a := DefaultAuthorizer{
 		clienter:             opa_client.New(cfg.address, opa_client.WithHTTPClient(cfg.httpCli)),
+		opaEvaluator:         cfg.opaEvaluator,
 		application:          application,
 		decisionInputHandler: cfg.decisionInputHandler,
 	}
@@ -129,9 +130,9 @@ func NewDefaultAuthorizer(application string, opts ...Option) *DefaultAuthorizer
 }
 
 type DefaultAuthorizer struct {
-	application string
-	clienter    opa_client.Clienter
-
+	application          string
+	clienter             opa_client.Clienter
+	opaEvaluator         OpaEvaluator
 	decisionInputHandler DecisionInputHandler
 }
 
@@ -140,8 +141,8 @@ type Config struct {
 	// address to opa
 	address string
 
-	authorizer []Authorizer
-
+	opaEvaluator         OpaEvaluator
+	authorizer           []Authorizer
 	decisionInputHandler DecisionInputHandler
 }
 
@@ -257,6 +258,10 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 }
 
 func (a *DefaultAuthorizer) OpaQuery(ctx context.Context, decisionDocument string, opaReq, opaResp interface{}) error {
+	if a.opaEvaluator != nil {
+		return a.opaEvaluator(ctx, decisionDocument, opaReq, opaResp)
+	}
+
 	logger := ctxlogrus.Extract(ctx)
 
 	// Empty document path is intentional
@@ -271,6 +276,33 @@ func (a *DefaultAuthorizer) OpaQuery(ctx context.Context, decisionDocument strin
 		logger.WithField("opaResp", opaResp).Debug("opa_policy_engine_response")
 	}
 	return err
+}
+
+// AffirmAuthorization makes an authz request to sidecar-OPA.
+// If authorization is permitted, error returned is nil,
+// and a new context is returned, possibly containing obligations.
+// Caller must further evaluate obligations if required.
+func (a *DefaultAuthorizer) AffirmAuthorization(ctx context.Context, fullMethod string, grpcReq interface{}) (context.Context, error) {
+	logger := ctxlogrus.Extract(ctx)
+	var (
+		ok     bool
+		newCtx context.Context
+		err    error
+	)
+
+	ok, newCtx, err = a.Evaluate(ctx, fullMethod, grpcReq, a.OpaQuery)
+	if err != nil {
+		logger.WithError(err).Errorf("unable_authorize %#v", a)
+		return nil, err
+	}
+
+	if !ok {
+		err = opa_client.ErrUndefined
+		logger.WithError(err).Error("policy engine returned undefined response")
+		return nil, err
+	}
+
+	return newCtx, nil
 }
 
 var (
