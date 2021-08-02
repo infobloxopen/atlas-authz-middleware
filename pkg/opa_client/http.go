@@ -25,7 +25,7 @@ var (
 	ErrUndefined = errors.New("undefined decision")
 )
 
-// CLient implements the Clienter interface
+// Client implements the Clienter interface
 type Client struct {
 	cli     *http.Client
 	address string
