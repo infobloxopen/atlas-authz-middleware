@@ -200,8 +200,9 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 	}
 
 	now := time.Now()
+	obfuscatedOpaReq := shortenPayloadForDebug(opaReq)
 	logger.WithFields(log.Fields{
-		"opaReq": opaReq,
+		"opaReq": obfuscatedOpaReq,
 		//"opaReqJSON": string(opaReqJSON),
 	}).Debug("opa_authorization_request")
 
@@ -255,6 +256,13 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 	}
 
 	return true, ctx, nil
+}
+
+func shortenPayloadForDebug(full Payload) Payload {
+	// This is a shallow copy
+	shorten := Payload(full)
+	shorten.JWT = shorten.JWT[:len(shorten.JWT)/4] + "..."
+	return shorten
 }
 
 func (a *DefaultAuthorizer) OpaQuery(ctx context.Context, decisionDocument string, opaReq, opaResp interface{}) error {
