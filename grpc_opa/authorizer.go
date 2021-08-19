@@ -378,18 +378,18 @@ func redactJWTForDebug(jwt string) string {
 	return strings.Join(parts, ".")
 }
 
-func shortenPayloadForDebug(full Payload) Payload {
-	// This is a shallow copy
-	shorten := Payload(full)
-	shorten.JWT = redactJWTForDebug(shorten.JWT)
-	return shorten
-}
-
 func min(a, b int) int {
 	if a < b {
 		return a
 	}
 	return b
+}
+
+func shortenPayloadForDebug(full Payload) Payload {
+	// This is a shallow copy
+	shorten := Payload(full)
+	shorten.JWT = redactJWTForDebug(shorten.JWT)
+	return shorten
 }
 
 func addObligations(ctx context.Context, opaResp OPAResponse) (context.Context, error) {
