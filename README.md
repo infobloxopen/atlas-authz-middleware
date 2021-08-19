@@ -22,7 +22,7 @@ if err == nil {
         obVal := newCtx.Value(opamw.ObKey)
         if obVal != nil {
             obTree, ok := obVal.(opamw.ObligationsNode)
-            if ok && obTree != nil {
+            if ok && obTree != nil  && !obTree.IsShallowEmpty() {
                 // process any obligations in obTree if required
             }
         }

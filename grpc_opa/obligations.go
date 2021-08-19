@@ -10,10 +10,14 @@ import (
 )
 
 var (
+	// ErrInvalidObligations is returned upon invalid obligations
 	ErrInvalidObligations = status.Errorf(codes.Internal, "Invalid obligations")
 )
 
+// ObligationsEnum enumerates the different kinds of ObligationsNode
 type ObligationsEnum int
+
+// The different kinds of ObligationsNode
 const (
 	ObligationsEmpty ObligationsEnum = iota // Default "zero" value for uninitialized ObligationsEnum
 	ObligationsCondition
@@ -21,8 +25,9 @@ const (
 	ObligationsOr
 )
 
+// String implements fmt.Stringer interface
 func (o8e ObligationsEnum) String() string {
-        return []string{
+	return []string{
 		"ObligationsEmpty",
 		"ObligationsCondition",
 		"ObligationsAnd",
@@ -43,7 +48,7 @@ type ObligationsNode struct {
 func (o8n *ObligationsNode) String() string {
 	jsonBytes, err := json.MarshalIndent(o8n, "", "  ")
 	if err != nil {
-		return "cannot json.MarshalIndent";
+		return "cannot json.MarshalIndent"
 	}
 	return string(jsonBytes)
 }
@@ -67,6 +72,11 @@ func (o8n *ObligationsNode) ShallowLength() int {
 	} 
 
 	return 0
+}
+
+// IsShallowEmpty returns whether this node is empty (has no obligations).
+func (o8n *ObligationsNode) IsShallowEmpty() bool {
+	return o8n.ShallowLength() == 0
 }
 
 // ShallowLessThan returns true if lhs less than rhs.
@@ -112,7 +122,7 @@ func (o8n *ObligationsNode) DeepSort() {
 		return
 	}
 
-	for i, _ := range o8n.Children {
+	for i := range o8n.Children {
 		o8n.Children[i].DeepSort()
 	}
 
