@@ -258,13 +258,6 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 	return true, ctx, nil
 }
 
-func shortenPayloadForDebug(full Payload) Payload {
-	// This is a shallow copy
-	shorten := Payload(full)
-	shorten.JWT = shorten.JWT[:len(shorten.JWT)/4] + "..."
-	return shorten
-}
-
 func (a *DefaultAuthorizer) OpaQuery(ctx context.Context, decisionDocument string, opaReq, opaResp interface{}) error {
 	if a.opaEvaluator != nil {
 		return a.opaEvaluator(ctx, decisionDocument, opaReq, opaResp)
@@ -374,6 +367,29 @@ func redactJWT(jwt string) string {
 		parts[len(parts)-1] = REDACTED
 	}
 	return strings.Join(parts, ".")
+}
+
+func redactJWTForDebug(jwt string) string {
+	parts := strings.Split(jwt, ".")
+	// Redact signature, header and body since we do not want to display any for debug logging
+	for i, _ := range parts {
+		parts[i] = parts[i][:min(len(parts[i]), 16)] + "/" + REDACTED
+	}
+	return strings.Join(parts, ".")
+}
+
+func shortenPayloadForDebug(full Payload) Payload {
+	// This is a shallow copy
+	shorten := Payload(full)
+	shorten.JWT = redactJWTForDebug(shorten.JWT)
+	return shorten
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func addObligations(ctx context.Context, opaResp OPAResponse) (context.Context, error) {
