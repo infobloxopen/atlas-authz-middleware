@@ -200,8 +200,9 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 	}
 
 	now := time.Now()
+	obfuscatedOpaReq := shortenPayloadForDebug(opaReq)
 	logger.WithFields(log.Fields{
-		"opaReq": opaReq,
+		"opaReq": obfuscatedOpaReq,
 		//"opaReqJSON": string(opaReqJSON),
 	}).Debug("opa_authorization_request")
 
@@ -366,6 +367,29 @@ func redactJWT(jwt string) string {
 		parts[len(parts)-1] = REDACTED
 	}
 	return strings.Join(parts, ".")
+}
+
+func redactJWTForDebug(jwt string) string {
+	parts := strings.Split(jwt, ".")
+	// Redact signature, header and body since we do not want to display any for debug logging
+	for i := range parts {
+		parts[i] = parts[i][:min(len(parts[i]), 16)] + "/" + REDACTED
+	}
+	return strings.Join(parts, ".")
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func shortenPayloadForDebug(full Payload) Payload {
+	// This is a shallow copy
+	shorten := Payload(full)
+	shorten.JWT = redactJWTForDebug(shorten.JWT)
+	return shorten
 }
 
 func addObligations(ctx context.Context, opaResp OPAResponse) (context.Context, error) {
