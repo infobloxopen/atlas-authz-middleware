@@ -372,7 +372,7 @@ func redactJWT(jwt string) string {
 func redactJWTForDebug(jwt string) string {
 	parts := strings.Split(jwt, ".")
 	// Redact signature, header and body since we do not want to display any for debug logging
-	for i, _ := range parts {
+	for i := range parts {
 		parts[i] = parts[i][:min(len(parts[i]), 16)] + "/" + REDACTED
 	}
 	return strings.Join(parts, ".")
