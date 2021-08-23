@@ -5,9 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
+	logrus "github.com/sirupsen/logrus"
+	logrustesthook "github.com/sirupsen/logrus/hooks/test"
 )
 
 func TestRedactJWT(t *testing.T) {
@@ -30,6 +34,7 @@ func Test_parseEndpoint(t *testing.T) {
 func Test_addObligations(t *testing.T) {
 	for idx, tst := range obligationsNodeTests {
 		ctx := context.Background()
+		ctx = ctxlogrus.ToContext(ctx, logrus.NewEntry(logrus.StandardLogger()))
 		var opaResp OPAResponse
 
 		err := json.Unmarshal([]byte(tst.regoRespJSON), &opaResp)
@@ -47,7 +52,7 @@ func Test_addObligations(t *testing.T) {
 				idx, tst.expectedErr, actualErr)
 		}
 
-	        actualVal, _ := newCtx.Value(ObKey).(*ObligationsNode)
+		actualVal, _ := newCtx.Value(ObKey).(*ObligationsNode)
 		if actualVal != nil {
 			t.Logf("tst#%d: before DeepSort: %s", idx, actualVal)
 			actualVal.DeepSort()
@@ -99,15 +104,16 @@ func TestAffirmAuthorization(t *testing.T) {
 	claimsVerifier = nullClaimsVerifier
 
 	testMap := []struct {
-		name        string
-		opaEvaltor  OpaEvaluator
-		expectCtx   bool
-		expectedErr error
+		name         string
+		opaEvaltor   OpaEvaluator
+		expectCtx    bool
+		expectedErr  error
+		forbiddenLog string
 	}{
 		{
 			name: "authz permitted, nil opa error",
 			opaEvaltor: func(ctx context.Context, decisionDocument string, opaReq, opaResp interface{}) error {
-				respJSON := fmt.Sprintf(`{"allow": %s}`, "true")
+				respJSON := fmt.Sprintf(`{"allow": %s, "obligations": {}}`, "true")
 				json.Unmarshal([]byte(respJSON), opaResp)
 				return nil
 			},
@@ -115,14 +121,37 @@ func TestAffirmAuthorization(t *testing.T) {
 			expectedErr: nil,
 		},
 		{
-			name: "authz denied, nil opa error",
+			name: "authz denied, nil opa error, both rbac checks failed",
 			opaEvaltor: func(ctx context.Context, decisionDocument string, opaReq, opaResp interface{}) error {
-				respJSON := fmt.Sprintf(`{"allow": %s}`, "false")
+				respJSON := fmt.Sprintf(`{"allow": %s, "obligations": {}}`, "false")
 				json.Unmarshal([]byte(respJSON), opaResp)
 				return nil
 			},
-			expectCtx:   false,
-			expectedErr: ErrForbidden,
+			expectCtx:    false,
+			expectedErr:  ErrForbidden,
+			forbiddenLog: `Request forbidden because these RBAC checks failed: authz.rbac.rbac authz.rbac.entitlement`,
+		},
+		{
+			name: "authz denied, nil opa error, rbac.rbac check ok",
+			opaEvaltor: func(ctx context.Context, decisionDocument string, opaReq, opaResp interface{}) error {
+				respJSON := fmt.Sprintf(`{"allow": %s, "obligations": {"authz.rbac.rbac": {}}}`, "false")
+				json.Unmarshal([]byte(respJSON), opaResp)
+				return nil
+			},
+			expectCtx:    false,
+			expectedErr:  ErrForbidden,
+			forbiddenLog: `Request forbidden because these RBAC checks failed: authz.rbac.entitlement`,
+		},
+		{
+			name: "authz denied, nil opa error, rbac.entitlement check ok",
+			opaEvaltor: func(ctx context.Context, decisionDocument string, opaReq, opaResp interface{}) error {
+				respJSON := fmt.Sprintf(`{"allow": %s, "obligations": {"authz.rbac.entitlement": {}}}`, "false")
+				json.Unmarshal([]byte(respJSON), opaResp)
+				return nil
+			},
+			expectCtx:    false,
+			expectedErr:  ErrForbidden,
+			forbiddenLog: `Request forbidden because these RBAC checks failed: authz.rbac.rbac`,
 		},
 		{
 			name: "bogus opa response, nil opa error",
@@ -131,13 +160,14 @@ func TestAffirmAuthorization(t *testing.T) {
 				json.Unmarshal([]byte(respJSON), opaResp)
 				return nil
 			},
-			expectCtx:   false,
-			expectedErr: ErrForbidden,
+			expectCtx:    false,
+			expectedErr:  ErrForbidden,
+			forbiddenLog: `Request forbidden because these RBAC checks failed:`,
 		},
 		{
 			name: "opa error",
 			opaEvaltor: func(ctx context.Context, decisionDocument string, opaReq, opaResp interface{}) error {
-				respJSON := fmt.Sprintf(`{"allow": %s}`, "true")
+				respJSON := fmt.Sprintf(`{"allow": %s, "obligations": {}}`, "true")
 				json.Unmarshal([]byte(respJSON), opaResp)
 				return ErrBoom
 			},
@@ -146,12 +176,16 @@ func TestAffirmAuthorization(t *testing.T) {
 		},
 	}
 
+	loggertesthook := logrustesthook.NewGlobal()
 	ctx := context.WithValue(context.Background(), TestingTContextKey, t)
+	ctx = ctxlogrus.ToContext(ctx, logrus.NewEntry(logrus.StandardLogger()))
 
 	for nth, tm := range testMap {
 		auther := NewDefaultAuthorizer("app", WithOpaEvaluator(tm.opaEvaltor))
 
+		loggertesthook.Reset()
 		resultCtx, resultErr := auther.AffirmAuthorization(ctx, "FakeMethod", nil)
+
 		if resultErr != tm.expectedErr {
 			t.Errorf("%d: %q: got error: %s, wanted error: %s", nth, tm.name, resultErr, tm.expectedErr)
 		}
@@ -160,6 +194,20 @@ func TestAffirmAuthorization(t *testing.T) {
 		}
 		if resultErr != nil && resultCtx != nil {
 			t.Errorf("%d: %q: returned ctx should be nil if err returned", nth, tm.name)
+		}
+
+		if resultErr == tm.expectedErr && tm.expectedErr == ErrForbidden {
+			gotExpectedForbiddenLogMsg := false
+			for _, entry := range loggertesthook.AllEntries() {
+				t.Logf("%d: logrus.Entry.Message: %s", nth, entry.Message)
+				if entry.Message == tm.forbiddenLog {
+					gotExpectedForbiddenLogMsg = true
+					break
+				}
+			}
+			if !gotExpectedForbiddenLogMsg {
+				t.Errorf("%d: Did not get logrus.Entry.Message: `%s`", nth, tm.forbiddenLog)
+			}
 		}
 	}
 }
