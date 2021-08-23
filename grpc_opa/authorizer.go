@@ -27,6 +27,11 @@ const (
 	TypeKey  = ABACKey("ABACType")
 	VerbKey  = ABACKey("ABACVerb")
 	ObKey    = ObligationKey("obligations")
+
+	// These Rego obligations constants are hard-coded in
+	// https://github.com/Infoblox-CTO/ngp.authz/blob/develop/helm/authz/files/rego/authz.rego
+	RBACObKey        = "authz.rbac.rbac"
+	EntitlementObKey = "authz.rbac.entitlement"
 )
 
 // Override to set your servicename
@@ -35,9 +40,9 @@ var (
 )
 
 var (
-	ErrForbidden          = status.Errorf(codes.PermissionDenied, "Request forbidden: not authorized")
-	ErrUnknown            = status.Errorf(codes.Unknown, "Unknown error")
-	ErrInvalidArg         = status.Errorf(codes.InvalidArgument, "Invalid argument")
+	ErrForbidden  = status.Errorf(codes.PermissionDenied, "Request forbidden: not authorized")
+	ErrUnknown    = status.Errorf(codes.Unknown, "Unknown error")
+	ErrInvalidArg = status.Errorf(codes.InvalidArgument, "Invalid argument")
 )
 
 // DecisionInput is app/service-specific data supplied by app/service ABAC requests
@@ -160,6 +165,7 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 
 	logger := ctxlogrus.Extract(ctx).WithFields(log.Fields{
 		"application": a.application,
+		"fullMethod":  fullMethod,
 	})
 
 	bearer, newBearer := athena_claims.AuthBearersFromCtx(ctx)
@@ -252,6 +258,8 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 	}
 
 	if !opaResp.Allow() {
+		forbidReason := opaResp.rbacForbiddenReason()
+		logger.Infof("Request forbidden because these RBAC checks failed:%s", forbidReason)
 		return false, ctx, ErrForbidden
 	}
 
@@ -351,6 +359,32 @@ func (o OPAResponse) Allow() bool {
 		return false
 	}
 	return allow
+}
+
+// If reason is available, returns reason RBAC was forbidden
+func (o OPAResponse) rbacForbiddenReason() string {
+	unavailReason := ""
+
+	obRaw, obFound := o[string(ObKey)]
+	if !obFound {
+		return unavailReason
+	}
+
+	obMap, isMap := obRaw.(map[string]interface{})
+	if !isMap {
+		return unavailReason
+	}
+
+	var availReason strings.Builder
+	if _, ok := obMap[RBACObKey]; !ok {
+		availReason.WriteByte(' ')
+		availReason.WriteString(RBACObKey)
+	}
+	if _, ok := obMap[EntitlementObKey]; !ok {
+		availReason.WriteByte(' ')
+		availReason.WriteString(EntitlementObKey)
+	}
+	return availReason.String()
 }
 
 // Obligations parses the returned obligations and returns them in standard format
