@@ -54,10 +54,17 @@ type DecisionInputHandler interface {
 	// GetDecisionInput returns an app/service-specific DecisionInput.
 	// A nil DecisionInput should NOT be returned unless error.
 	GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*DecisionInput, error)
+
+	// String implements fmt.Stringer interface
+	String() string
 }
 
 // DefaultDecisionInputer is an example DecisionInputHandler that is used as default
 type DefaultDecisionInputer struct{}
+
+func (m DefaultDecisionInputer) String() string {
+	return "grpc_opa_middleware.DefaultDecisionInputer{}"
+}
 
 // GetDecisionInput is an example DecisionInputHandler that returns some decision input
 // based on some incoming Context values.  App/services will most likely supply their
@@ -97,6 +104,9 @@ type Authorizer interface {
 	// OpaQuery executes query of the specified decisionDocument against OPA.
 	// If decisionDocument is "", then the query is executed against the default decision document configured in OPA.
 	OpaQuery(ctx context.Context, decisionDocument string, opaReq, opaResp interface{}) error
+
+	// String implements fmt.Stringer interface
+	String() string
 }
 
 type AuthorizeFn func(ctx context.Context, fullMethodName string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error)
@@ -113,6 +123,7 @@ func NewDefaultAuthorizer(application string, opts ...Option) *DefaultAuthorizer
 	cfg := &Config{
 		address:              opa_client.DefaultAddress,
 		decisionInputHandler: defDecisionInputer,
+		claimsVerifier:       UnverifiedClaimFromBearers,
 	}
 	for _, opt := range opts {
 		opt(cfg)
@@ -120,11 +131,17 @@ func NewDefaultAuthorizer(application string, opts ...Option) *DefaultAuthorizer
 
 	//log.Debugf("cfg=%+v", *cfg)
 
+	clienter := cfg.clienter
+	if cfg.clienter == nil {
+		clienter = opa_client.New(cfg.address, opa_client.WithHTTPClient(cfg.httpCli))
+	}
+
 	a := DefaultAuthorizer{
-		clienter:             opa_client.New(cfg.address, opa_client.WithHTTPClient(cfg.httpCli)),
+		clienter:             clienter,
 		opaEvaluator:         cfg.opaEvaluator,
 		application:          application,
 		decisionInputHandler: cfg.decisionInputHandler,
+		claimsVerifier:       cfg.claimsVerifier,
 	}
 	return &a
 }
@@ -134,6 +151,7 @@ type DefaultAuthorizer struct {
 	clienter             opa_client.Clienter
 	opaEvaluator         OpaEvaluator
 	decisionInputHandler DecisionInputHandler
+	claimsVerifier       ClaimsVerifier
 }
 
 type Config struct {
@@ -141,12 +159,14 @@ type Config struct {
 	// address to opa
 	address string
 
+	clienter             opa_client.Clienter
 	opaEvaluator         OpaEvaluator
 	authorizer           []Authorizer
 	decisionInputHandler DecisionInputHandler
+	claimsVerifier       ClaimsVerifier
 }
 
-var claimsVerifier func([]string, []string) (string, []error)
+type ClaimsVerifier func([]string, []string) (string, []error)
 
 // 	FullMethod is the full RPC method string, i.e., /package.service/method.
 // e.g. fullmethod:  /service.TagService/ListRetiredTags PARGs endpoint: TagService/ListRetiredTags
@@ -154,6 +174,11 @@ func parseEndpoint(fullMethod string) string {
 	byPackage := strings.Split(fullMethod, ".")
 	endpoint := byPackage[len(byPackage)-1]
 	return strings.Replace(endpoint, "/", ".", -1)
+}
+
+func (a DefaultAuthorizer) String() string {
+	return fmt.Sprintf(`grpc_opa_middleware.DefaultAuthorizer{application:"%s" clienter:%s decisionInputHandler:%s}`,
+		a.application, a.clienter.String(), a.decisionInputHandler.String())
 }
 
 func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
@@ -164,11 +189,7 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 
 	bearer, newBearer := athena_claims.AuthBearersFromCtx(ctx)
 
-	if claimsVerifier == nil {
-		claimsVerifier = UnverifiedClaimFromBearers
-	}
-
-	rawJWT, errs := claimsVerifier([]string{bearer}, []string{newBearer})
+	rawJWT, errs := a.claimsVerifier([]string{bearer}, []string{newBearer})
 	if len(errs) > 0 {
 		return false, ctx, fmt.Errorf("%q", errs)
 	}
@@ -237,6 +258,23 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 		return false, ctx, err
 	}
 
+	// When we query OPA for the default decision document, it returns non-nested JSON document:
+	//   {"allow": true, ...}
+	// When we query OPA for non-default decision document, it returns nested JSON document:
+	//   {"result":{"allow": true, ...}}
+	// If the JSON result document is nested within "result" wrapper map,
+	// we extract the nested JSON document and throw away the "result" wrapper map.
+	nestedResultVal, resultIsNested := opaResp["result"]
+	if resultIsNested {
+		nestedResultMap, ok := nestedResultVal.(map[string]interface{})
+		if ok {
+			opaResp = OPAResponse{}
+			for k, v := range nestedResultMap {
+				opaResp[k] = v
+			}
+		}
+	}
+
 	// Log non-err opa responses
 	{
 		raw, _ := json.Marshal(opaResp)
@@ -293,7 +331,7 @@ func (a *DefaultAuthorizer) AffirmAuthorization(ctx context.Context, fullMethod 
 
 	ok, newCtx, err = a.Evaluate(ctx, fullMethod, grpcReq, a.OpaQuery)
 	if err != nil {
-		logger.WithError(err).Errorf("unable_authorize %#v", a)
+		logger.WithError(err).Errorf("unable_authorize %s", a)
 		return nil, err
 	}
 
