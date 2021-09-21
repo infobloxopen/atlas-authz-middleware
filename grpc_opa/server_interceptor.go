@@ -49,7 +49,7 @@ func UnaryServerInterceptor(application string, opts ...Option) grpc.UnaryServer
 		for _, auther := range cfg.authorizer {
 			ok, newCtx, err = auther.Evaluate(ctx, info.FullMethod, grpcReq, auther.OpaQuery)
 			if err != nil {
-				logger.WithError(err).Errorf("unable_authorize %s", auther)
+				logger.WithError(err).WithField("authorizer", auther).Error("unable_authorize")
 			}
 			if ok {
 				break
@@ -99,7 +99,7 @@ func StreamServerInterceptor(application string, opts ...Option) grpc.StreamServ
 		for _, auther := range cfg.authorizer {
 			ok, newCtx, err = auther.Evaluate(stream.Context(), info.FullMethod, info, auther.OpaQuery)
 			if err != nil {
-				logger.WithError(err).Errorf("unable_authorize %s", auther)
+				logger.WithError(err).WithField("authorizer", auther).Error("unable_authorize")
 			}
 			if ok {
 				break

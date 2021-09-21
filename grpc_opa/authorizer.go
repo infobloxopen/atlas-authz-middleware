@@ -54,9 +54,6 @@ type DecisionInputHandler interface {
 	// GetDecisionInput returns an app/service-specific DecisionInput.
 	// A nil DecisionInput should NOT be returned unless error.
 	GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*DecisionInput, error)
-
-	// String implements fmt.Stringer interface
-	String() string
 }
 
 // DefaultDecisionInputer is an example DecisionInputHandler that is used as default
@@ -104,9 +101,6 @@ type Authorizer interface {
 	// OpaQuery executes query of the specified decisionDocument against OPA.
 	// If decisionDocument is "", then the query is executed against the default decision document configured in OPA.
 	OpaQuery(ctx context.Context, decisionDocument string, opaReq, opaResp interface{}) error
-
-	// String implements fmt.Stringer interface
-	String() string
 }
 
 type AuthorizeFn func(ctx context.Context, fullMethodName string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error)
@@ -132,7 +126,7 @@ func NewDefaultAuthorizer(application string, opts ...Option) *DefaultAuthorizer
 	//log.Debugf("cfg=%+v", *cfg)
 
 	clienter := cfg.clienter
-	if cfg.clienter == nil {
+	if clienter == nil {
 		clienter = opa_client.New(cfg.address, opa_client.WithHTTPClient(cfg.httpCli))
 	}
 
@@ -178,7 +172,7 @@ func parseEndpoint(fullMethod string) string {
 
 func (a DefaultAuthorizer) String() string {
 	return fmt.Sprintf(`grpc_opa_middleware.DefaultAuthorizer{application:"%s" clienter:%s decisionInputHandler:%s}`,
-		a.application, a.clienter.String(), a.decisionInputHandler.String())
+		a.application, a.clienter, a.decisionInputHandler)
 }
 
 func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
@@ -189,7 +183,12 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 
 	bearer, newBearer := athena_claims.AuthBearersFromCtx(ctx)
 
-	rawJWT, errs := a.claimsVerifier([]string{bearer}, []string{newBearer})
+	claimsVerifier := a.claimsVerifier
+	if claimsVerifier == nil {
+		claimsVerifier = UnverifiedClaimFromBearers
+	}
+
+	rawJWT, errs := claimsVerifier([]string{bearer}, []string{newBearer})
 	if len(errs) > 0 {
 		return false, ctx, fmt.Errorf("%q", errs)
 	}
@@ -331,7 +330,7 @@ func (a *DefaultAuthorizer) AffirmAuthorization(ctx context.Context, fullMethod 
 
 	ok, newCtx, err = a.Evaluate(ctx, fullMethod, grpcReq, a.OpaQuery)
 	if err != nil {
-		logger.WithError(err).Errorf("unable_authorize %s", a)
+		logger.WithError(err).WithField("authorizer", a).Error("unable_authorize")
 		return nil, err
 	}
 

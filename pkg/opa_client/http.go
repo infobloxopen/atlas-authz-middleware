@@ -40,7 +40,6 @@ type Clienter interface {
 	CustomQuery(ctx context.Context, document string, data interface{}, resp interface{}) error
 	Health() error
 	Query(ctx context.Context, data interface{}, resp interface{}) error
-	String() string
 }
 
 type Option func(c *Client)

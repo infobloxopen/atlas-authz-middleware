@@ -38,12 +38,6 @@ func init() {
 	logrus.SetLevel(logrus.DebugLevel)
 }
 
-/*
-func nullClaimsVerifier([]string, []string) (string, []error) {
-	return "", nil
-}
-*/
-
 func TestConnFailure(t *testing.T) {
 	grpcUnaryHandler := func(ctx context.Context, grpcReq interface{}) (interface{}, error) {
 		return nil, nil
@@ -258,6 +252,7 @@ func TestDecisionInput(t *testing.T) {
 		inputer   DecisionInputHandler
 		jwtHeader string
 		errLogMsg string
+		authorizerField string
 	}{
 		{
 			err:      nil,
@@ -274,7 +269,8 @@ func TestDecisionInput(t *testing.T) {
 			inputer:  new(jsonNonMarshalableInputer),
 			// fake svc-svc jwt with fake signature
 			jwtHeader: "bearer eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzZXJ2aWNlIjoiZm9vLXNlcnZpY2UiLCJhdWQiOiJmb28tYXVkaWVuY2UiLCJleHAiOjIzOTg4NzI3NzgsImp0aSI6ImZvby1qdGkiLCJpYXQiOjE1MzUzMjE0MDcsImlzcyI6ImZvby1pc3N1ZXIiLCJuYmYiOjE1MzUzMjE0MDd9.4zcNzRrhIXN3s6jNYWIbe6TRBaOwTh_Yy1iSCqVW9H4pT3p2c23TSsLq6R2zs-xmsZ5jTUvalpQgPJwbFmdvxA",
-			errLogMsg: `unable_authorize mockAuthorizerWithAllowOpaEvaluator{defAuther:grpc_opa_middleware.DefaultAuthorizer{application:"myapplication" clienter:opa_client.Client{address:"http://localhost:8181"} decisionInputHandler:jsonNonMarshalableInputer{}}}`,
+			errLogMsg: `unable_authorize`,
+			authorizerField: `mockAuthorizerWithAllowOpaEvaluator{defAuther:grpc_opa_middleware.DefaultAuthorizer{application:"myapplication" clienter:opa_client.Client{address:"http://localhost:8181"} decisionInputHandler:jsonNonMarshalableInputer{}}}`,
 		},
 		{
 			err:      ErrInvalidArg,
@@ -283,7 +279,8 @@ func TestDecisionInput(t *testing.T) {
 			inputer:  new(badDecisionInputer),
 			// empty jwt with fake signature
 			jwtHeader: "bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.A5mVf-_pE0XM6RlWnNx4YBzFWqYIcsc3_j1g9I2768c",
-			errLogMsg: `unable_authorize mockAuthorizerWithAllowOpaEvaluator{defAuther:grpc_opa_middleware.DefaultAuthorizer{application:"myapplication" clienter:opa_client.Client{address:"http://localhost:8181"} decisionInputHandler:badDecisionInputer{}}}`,
+			errLogMsg: `unable_authorize`,
+			authorizerField: `mockAuthorizerWithAllowOpaEvaluator{defAuther:grpc_opa_middleware.DefaultAuthorizer{application:"myapplication" clienter:opa_client.Client{address:"http://localhost:8181"} decisionInputHandler:badDecisionInputer{}}}`,
 		},
 	}
 
@@ -323,8 +320,16 @@ func TestDecisionInput(t *testing.T) {
 			gotExpectedErrLogMsg := false
 			for _, entry := range loggertesthook.AllEntries() {
 				t.Logf("%d: logrus.Entry.Message: %s", nth, entry.Message)
+				t.Logf("%d: logrus.Entry.Data: %s", nth, entry.Data)
+				authorizerFieldVal := entry.Data["authorizer"]
+				authorizerField := fmt.Sprint(authorizerFieldVal)
 				if entry.Message == tm.errLogMsg {
-					gotExpectedErrLogMsg = true
+					if authorizerField == tm.authorizerField {
+						gotExpectedErrLogMsg = true
+					} else {
+						t.Errorf("%d: Did not\n get authorizerField: `%s`\n got authorizerField: `%s`",
+							nth, tm.authorizerField, authorizerField)
+					}
 					break
 				}
 			}
