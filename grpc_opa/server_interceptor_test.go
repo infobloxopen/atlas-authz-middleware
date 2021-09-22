@@ -13,15 +13,15 @@ import (
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	logrus "github.com/sirupsen/logrus"
+	logrustesthook "github.com/sirupsen/logrus/hooks/test"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
+	"github.com/infobloxopen/atlas-authz-middleware/utils_test"
 )
-
-type TestingTContextKeyType string
-const TestingTContextKey = TestingTContextKeyType("*testing.T")
 
 var netDialErr = &net.OpError{Op: "dial", Net: "tcp", Err: syscall.ECONNREFUSED}
 
@@ -38,22 +38,17 @@ func init() {
 	logrus.SetLevel(logrus.DebugLevel)
 }
 
-func nullClaimsVerifier([]string, []string) (string, []error) {
-	return "", nil
-}
-
 func TestConnFailure(t *testing.T) {
-	claimsVerifier = nullClaimsVerifier
-
 	grpcUnaryHandler := func(ctx context.Context, grpcReq interface{}) (interface{}, error) {
 		return nil, nil
 	}
-	interceptor := UnaryServerInterceptor("app", WithHTTPClient(&http.Client{
-		Transport: &connFailTransport{},
-	}))
+	interceptor := UnaryServerInterceptor("app",
+		WithHTTPClient(&http.Client{Transport: &connFailTransport{},}),
+		WithClaimsVerifier(utils_test.NullClaimsVerifier),
+	)
 
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(3*time.Second))
-	ctx = context.WithValue(ctx, TestingTContextKey, t)
+	ctx = context.WithValue(ctx, utils_test.TestingTContextKey, t)
 	defer cancel()
 	grpcResp, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{FullMethod: "FakeMethod"}, grpcUnaryHandler)
 	if grpcResp != nil {
@@ -66,18 +61,19 @@ func TestConnFailure(t *testing.T) {
 }
 
 func TestMockOPA(t *testing.T) {
-	claimsVerifier = nullClaimsVerifier
-
 	grpcUnaryHandler := func(ctx context.Context, grpcReq interface{}) (interface{}, error) {
 		return nil, nil
 	}
 
 	mock := new(mockAuthorizer)
-	interceptor := UnaryServerInterceptor("app", WithAuthorizer(mock))
+	interceptor := UnaryServerInterceptor("app",
+		WithAuthorizer(mock),
+		WithClaimsVerifier(utils_test.NullClaimsVerifier),
+	)
 
 	deadline := time.Now().Add(3 * time.Second)
 	ctx, cancel := context.WithDeadline(context.Background(), deadline)
-	ctx = context.WithValue(ctx, TestingTContextKey, t)
+	ctx = context.WithValue(ctx, utils_test.TestingTContextKey, t)
 	defer cancel()
 	testMap := []struct {
 		code   codes.Code
@@ -115,18 +111,19 @@ func (m *mockAuthorizer) Evaluate(ctx context.Context, fullMethod string, grpcRe
 }
 
 func TestStreamServerInterceptor(t *testing.T) {
-	claimsVerifier = nullClaimsVerifier
-
 	grpcStreamHandler := func(srv interface{}, stream grpc.ServerStream) error {
 		return nil
 	}
 
 	mock := new(mockAuthorizer)
-	interceptor := StreamServerInterceptor("app", WithAuthorizer(mock))
+	interceptor := StreamServerInterceptor("app",
+		WithAuthorizer(mock),
+		WithClaimsVerifier(utils_test.NullClaimsVerifier),
+	)
 
 	deadline := time.Now().Add(3 * time.Second)
 	ctx, cancel := context.WithDeadline(context.Background(), deadline)
-	ctx = context.WithValue(ctx, TestingTContextKey, t)
+	ctx = context.WithValue(ctx, utils_test.TestingTContextKey, t)
 	defer cancel()
 	testMap := []struct {
 		code   codes.Code
@@ -163,12 +160,16 @@ type mockAuthorizerWithAllowOpaEvaluator struct {
 	defAuther *DefaultAuthorizer
 }
 
+func (m mockAuthorizerWithAllowOpaEvaluator) String() string {
+	return fmt.Sprintf("mockAuthorizerWithAllowOpaEvaluator{defAuther:%s}", m.defAuther.String())
+}
+
 func (a *mockAuthorizerWithAllowOpaEvaluator) Evaluate(ctx context.Context, fullMethod string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
 	return a.defAuther.Evaluate(ctx, fullMethod, grpcReq, opaEvaluator)
 }
 
 func (m *mockAuthorizerWithAllowOpaEvaluator) OpaQuery(ctx context.Context, decisionDocument string, opaReq, opaResp interface{}) error {
-	t, _ := ctx.Value(TestingTContextKey).(*testing.T)
+	t, _ := ctx.Value(utils_test.TestingTContextKey).(*testing.T)
 	_, ok := opaReq.(Payload)
 	allow := "true"
 	if !ok {
@@ -187,11 +188,19 @@ func newMockAuthorizerWithAllowOpaEvaluator(application string, opts ...Option) 
 
 type badDecisionInputer struct{}
 
+func (m badDecisionInputer) String() string {
+	return "badDecisionInputer{}"
+}
+
 func (m *badDecisionInputer) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*DecisionInput, error) {
 	return nil, fmt.Errorf("badDecisionInputer")
 }
 
 type jsonMarshalableInputer struct{}
+
+func (m jsonMarshalableInputer) String() string {
+	return "jsonMarshalableInputer{}"
+}
 
 func (m *jsonMarshalableInputer) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*DecisionInput, error) {
 	var sealctx []interface{}
@@ -221,9 +230,13 @@ func (m *jsonMarshalableInputer) GetDecisionInput(ctx context.Context, fullMetho
 
 type jsonNonMarshalableInputer struct{}
 
+func (m jsonNonMarshalableInputer) String() string {
+	return "jsonNonMarshalableInputer{}"
+}
+
 func (m *jsonNonMarshalableInputer) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*DecisionInput, error) {
 	var sealctx []interface{}
-	sealctx = append(sealctx, nullClaimsVerifier) // nullClaimsVerifier is a non-json-marshalable fn)
+	sealctx = append(sealctx, utils_test.NullClaimsVerifier) // NullClaimsVerifier is a non-json-marshalable fn)
 
 	inp, _ := defDecisionInputer.GetDecisionInput(ctx, fullMethod, grpcReq)
 	inp.SealCtx = sealctx
@@ -232,14 +245,14 @@ func (m *jsonNonMarshalableInputer) GetDecisionInput(ctx context.Context, fullMe
 }
 
 func TestDecisionInput(t *testing.T) {
-	claimsVerifier = nil
-
 	testMap := []struct {
 		err       error
 		abacType  string
 		abacVerb  string
 		inputer   DecisionInputHandler
 		jwtHeader string
+		errLogMsg string
+		authorizerField string
 	}{
 		{
 			err:      nil,
@@ -256,6 +269,8 @@ func TestDecisionInput(t *testing.T) {
 			inputer:  new(jsonNonMarshalableInputer),
 			// fake svc-svc jwt with fake signature
 			jwtHeader: "bearer eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzZXJ2aWNlIjoiZm9vLXNlcnZpY2UiLCJhdWQiOiJmb28tYXVkaWVuY2UiLCJleHAiOjIzOTg4NzI3NzgsImp0aSI6ImZvby1qdGkiLCJpYXQiOjE1MzUzMjE0MDcsImlzcyI6ImZvby1pc3N1ZXIiLCJuYmYiOjE1MzUzMjE0MDd9.4zcNzRrhIXN3s6jNYWIbe6TRBaOwTh_Yy1iSCqVW9H4pT3p2c23TSsLq6R2zs-xmsZ5jTUvalpQgPJwbFmdvxA",
+			errLogMsg: `unable_authorize`,
+			authorizerField: `mockAuthorizerWithAllowOpaEvaluator{defAuther:grpc_opa_middleware.DefaultAuthorizer{application:"myapplication" clienter:opa_client.Client{address:"http://localhost:8181"} decisionInputHandler:jsonNonMarshalableInputer{}}}`,
 		},
 		{
 			err:      ErrInvalidArg,
@@ -264,33 +279,63 @@ func TestDecisionInput(t *testing.T) {
 			inputer:  new(badDecisionInputer),
 			// empty jwt with fake signature
 			jwtHeader: "bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.A5mVf-_pE0XM6RlWnNx4YBzFWqYIcsc3_j1g9I2768c",
+			errLogMsg: `unable_authorize`,
+			authorizerField: `mockAuthorizerWithAllowOpaEvaluator{defAuther:grpc_opa_middleware.DefaultAuthorizer{application:"myapplication" clienter:opa_client.Client{address:"http://localhost:8181"} decisionInputHandler:badDecisionInputer{}}}`,
 		},
 	}
 
-	for _, tm := range testMap {
+	loggertesthook := logrustesthook.NewGlobal()
+
+	for nth, tm := range testMap {
 		grpcUnaryHandler := func(ctx context.Context, grpcReq interface{}) (interface{}, error) {
 			return nil, nil
 		}
 
 		mockInputer := tm.inputer
 		mockAuthzer := newMockAuthorizerWithAllowOpaEvaluator("myapplication", WithDecisionInputHandler(mockInputer))
-		interceptor := UnaryServerInterceptor("app", WithAuthorizer(mockAuthzer), WithDecisionInputHandler(mockInputer))
+		interceptor := UnaryServerInterceptor("app",
+			WithAuthorizer(mockAuthzer),
+			WithDecisionInputHandler(mockInputer),
+			WithClaimsVerifier(utils_test.NullClaimsVerifier),
+		)
 
 		headers := map[string]string{
 			"authorization": tm.jwtHeader,
 		}
 
 		ctx := context.Background()
-		ctx = context.WithValue(ctx, TestingTContextKey, t)
+		ctx = context.WithValue(ctx, utils_test.TestingTContextKey, t)
 		ctx = context.WithValue(ctx, TypeKey, tm.abacType)
 		ctx = context.WithValue(ctx, VerbKey, tm.abacVerb)
 		ctx = ctxlogrus.ToContext(ctx, logrus.NewEntry(logrus.StandardLogger()))
 		ctx = metadata.NewIncomingContext(ctx, metadata.New(headers))
 
+		loggertesthook.Reset()
+
 		_, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{FullMethod: "FakeService.FakeMethod"}, grpcUnaryHandler)
 		//t.Logf("err=%+v tm.err=%+v", err, tm.err)
 		if err != tm.err {
-			t.Errorf("got: %s wanted: %s", err, tm.err)
+			t.Errorf("%d: got: %s wanted: %s", nth, err, tm.err)
+		} else if err != nil {
+			gotExpectedErrLogMsg := false
+			for _, entry := range loggertesthook.AllEntries() {
+				t.Logf("%d: logrus.Entry.Message: %s", nth, entry.Message)
+				t.Logf("%d: logrus.Entry.Data: %s", nth, entry.Data)
+				authorizerFieldVal := entry.Data["authorizer"]
+				authorizerField := fmt.Sprint(authorizerFieldVal)
+				if entry.Message == tm.errLogMsg {
+					if authorizerField == tm.authorizerField {
+						gotExpectedErrLogMsg = true
+					} else {
+						t.Errorf("%d: Did not\n get authorizerField: `%s`\n got authorizerField: `%s`",
+							nth, tm.authorizerField, authorizerField)
+					}
+					break
+				}
+			}
+			if !gotExpectedErrLogMsg {
+				t.Errorf("%d: Did not get logrus.Entry.Message: `%s`", nth, tm.errLogMsg)
+			}
 		}
 	}
 }

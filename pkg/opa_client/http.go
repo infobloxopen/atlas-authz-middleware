@@ -79,6 +79,11 @@ func (c *Client) do(req *http.Request) (*http.Response, error) {
 	return resp, err
 }
 
+// String implements fmt.Stringer interface
+func (c Client) String() string {
+	return fmt.Sprintf(`opa_client.Client{address:"%s"}`, c.address)
+}
+
 // Address retrieves the protocol://address of server
 func (c *Client) Address() string {
 	return fmt.Sprintf("%s", c.address)
@@ -165,4 +170,47 @@ func checkHeader(scheme, key, val string) bool {
 	}
 
 	return httpguts.ValidHeaderFieldName(key) && httpguts.ValidHeaderFieldValue(val)
+}
+
+// UploadRegoPolicy creates/updates an OPA policy.
+// Intended for unit-testing.
+//
+// https://www.openpolicyagent.org/docs/latest/rest-api/#create-or-update-a-policy
+func (c *Client) UploadRegoPolicy(ctx context.Context, policyID string, policyRego []byte, resp interface{}) error {
+
+	ref := fmt.Sprintf("%s/v1/policies/%s", c.Address(), policyID)
+
+	req, err := http.NewRequest("PUT", ref, bytes.NewBuffer(policyRego))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "text/plain")
+
+	putResp, err := c.do(req)
+	if err != nil {
+		return err
+	}
+	defer putResp.Body.Close()
+	bs, _ := ioutil.ReadAll(putResp.Body)
+
+	buf := bytes.NewBuffer(bs)
+	copy := buf.String()
+	dec := json.NewDecoder(buf)
+
+	// Successful code, decode as document
+	if putResp.StatusCode >= 200 && putResp.StatusCode < 400 {
+		if resp == nil {
+			return nil
+		}
+		return dec.Decode(resp)
+	}
+
+	// unsuccessful code, attempt to decode as types.ErrorV1
+	var opaErrV1 types.ErrorV1
+	if err := dec.Decode(&opaErrV1); err != nil {
+		return fmt.Errorf("unparseable error from OPA: StatusCode=%d: `%s`", putResp.StatusCode, copy)
+	}
+
+	return &opaErrV1
 }

@@ -2,6 +2,7 @@ package grpc_opa_middleware
 
 import (
 	"net/http"
+	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
 )
 
 type Option func(c *Config)
@@ -18,6 +19,16 @@ func WithHTTPClient(client *http.Client) Option {
 	return func(c *Config) {
 		if client != nil {
 			c.httpCli = client
+		}
+	}
+}
+
+// WithOpaClienter overrides the Clienter used to call Opa.
+// This option takes precedence over WithHTTPClient.
+func WithOpaClienter(clienter opa_client.Clienter) Option {
+	return func(c *Config) {
+		if clienter != nil {
+			c.clienter = clienter
 		}
 	}
 }
@@ -44,5 +55,12 @@ func WithAuthorizer(auther ...Authorizer) Option {
 func WithDecisionInputHandler(decisionHandler DecisionInputHandler) Option {
 	return func(c *Config) {
 		c.decisionInputHandler = decisionHandler
+	}
+}
+
+// WithClaimsVerifier overrides default ClaimsVerifier
+func WithClaimsVerifier(claimsVerifier ClaimsVerifier) Option {
+	return func(c *Config) {
+		c.claimsVerifier = claimsVerifier
 	}
 }
