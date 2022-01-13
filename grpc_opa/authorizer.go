@@ -9,13 +9,15 @@ import (
 	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
-	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
-	athena_claims "github.com/infobloxopen/atlas-claims"
 	log "github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/infobloxopen/atlas-app-toolkit/requestid"
+	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
+	athena_claims "github.com/infobloxopen/atlas-claims"
 )
 
 // ABACKey is a context.Context key type
@@ -35,9 +37,9 @@ var (
 )
 
 var (
-	ErrForbidden          = status.Errorf(codes.PermissionDenied, "Request forbidden: not authorized")
-	ErrUnknown            = status.Errorf(codes.Unknown, "Unknown error")
-	ErrInvalidArg         = status.Errorf(codes.InvalidArgument, "Invalid argument")
+	ErrForbidden  = status.Errorf(codes.PermissionDenied, "Request forbidden: not authorized")
+	ErrUnknown    = status.Errorf(codes.Unknown, "Unknown error")
+	ErrInvalidArg = status.Errorf(codes.InvalidArgument, "Invalid argument")
 )
 
 // DecisionInput is app/service-specific data supplied by app/service ABAC requests
@@ -193,12 +195,15 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 		return false, ctx, fmt.Errorf("%q", errs)
 	}
 
+	reqID, _ := requestid.FromContext(ctx)
+
 	opaReq := Payload{
 		Endpoint:    parseEndpoint(fullMethod),
 		FullMethod:  fullMethod,
 		Application: a.application,
 		// FIXME: implement athena_claims.AuthBearersFromCtx
-		JWT: redactJWT(rawJWT),
+		JWT:       redactJWT(rawJWT),
+		RequestID: reqID,
 	}
 
 	decisionInput, err := a.decisionInputHandler.GetDecisionInput(ctx, fullMethod, grpcReq)
@@ -367,6 +372,7 @@ type Payload struct {
 	// FullMethod is the full RPC method string, i.e., /package.service/method.
 	FullMethod string `json:"full_method"`
 	JWT        string `json:"jwt"`
+	RequestID  string `json:"request_id"`
 	DecisionInput
 }
 
