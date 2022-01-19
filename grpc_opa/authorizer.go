@@ -195,7 +195,10 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 		return false, ctx, fmt.Errorf("%q", errs)
 	}
 
-	reqID, _ := requestid.FromContext(ctx)
+	reqID, ok := requestid.FromContext(ctx)
+	if !ok {
+		reqID = "no-request-uuid"
+	}
 
 	opaReq := Payload{
 		Endpoint:    parseEndpoint(fullMethod),
