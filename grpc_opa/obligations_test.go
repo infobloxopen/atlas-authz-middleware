@@ -15,7 +15,7 @@ func Test_parseOPAObligations(t *testing.T) {
 
 		err := json.Unmarshal([]byte(tst.regoRespJSON), &resp)
 		if err != nil {
-			t.Errorf("tst#%d: err=%s trying to json.Unmarshal: %s",
+			t.Errorf("tst#%d: FAIL: err=%s trying to json.Unmarshal: %s",
 				idx, err, tst.regoRespJSON)
 			continue
 		}
@@ -23,7 +23,7 @@ func Test_parseOPAObligations(t *testing.T) {
 		t.Logf("tst#%d: resp=%#v", idx, resp)
 		if _, ok := resp[string(ObKey)]; !ok {
 			if strings.Contains(tst.regoRespJSON, `"obligations":`) {
-				t.Errorf("tst#%d: '%s' key not found in OPAResponse",
+				t.Errorf("tst#%d: FAIL: '%s' key not found in OPAResponse",
 					idx, string(ObKey))
 			}
 			continue
@@ -31,7 +31,7 @@ func Test_parseOPAObligations(t *testing.T) {
 		actualVal, actualErr := parseOPAObligations(resp[string(ObKey)])
 
 		if actualErr != tst.expectedErr {
-			t.Errorf("tst#%d: expectedErr=%s actualErr=%s",
+			t.Errorf("tst#%d: FAIL: expectedErr=%s actualErr=%s",
 				idx, tst.expectedErr, actualErr)
 		}
 
@@ -40,7 +40,7 @@ func Test_parseOPAObligations(t *testing.T) {
 			actualVal.DeepSort()
 		}
 		if !reflect.DeepEqual(actualVal, tst.expectedVal) {
-			t.Errorf("tst#%d: expectedVal=%s\nactualVal=%s",
+			t.Errorf("tst#%d: FAIL: expectedVal=%s\nactualVal=%s",
 				idx, tst.expectedVal, actualVal)
 		}
 
@@ -57,13 +57,13 @@ func Test_parseOPAObligations(t *testing.T) {
 		t.Logf("tst#%d: actualSQL: `%s`", idx, actualSQL)
 
 		if sqlErr != nil && !tst.expectSQLErr {
-			t.Errorf("tst#%d: Got unexpected ToSQLPredicate err: %s", idx, sqlErr)
+			t.Errorf("tst#%d: FAIL: Got unexpected ToSQLPredicate err: %s", idx, sqlErr)
 		} else if sqlErr == nil && tst.expectSQLErr {
-			t.Errorf("tst#%d: Expected ToSQLPredicate err, but got nil err", idx)
+			t.Errorf("tst#%d: FAIL: Expected ToSQLPredicate err, but got nil err", idx)
 		}
 
 		if actualSQL != tst.expectedSQL {
-			t.Errorf("tst#%d: Expected SQL: `%s`\nBut got SQL: `%s`", idx,
+			t.Errorf("tst#%d: FAIL: Expected SQL: `%s`\nBut got SQL: `%s`", idx,
 				tst.expectedSQL, actualSQL)
 		}
 	}
@@ -119,7 +119,7 @@ var obligationsNodeTests = []struct {
 		expectedErr:  ErrInvalidObligations,
 		regoRespJSON: `{
 			"allow": true,
-			"obligations": { "policy1_guid": "bad obligations value" }
+			"obligations": { "abac.policy1_guid": "bad obligations value" }
 		}`,
 		expectedVal:  nil,
 		expectSQLErr: false,
@@ -129,7 +129,7 @@ var obligationsNodeTests = []struct {
 		expectedErr:  ErrInvalidObligations,
 		regoRespJSON: `{
 			"allow": true,
-			"obligations": { "bad_obligations_value": [ 3.14 ]}
+			"obligations": { "abac.bad_obligations_value": [ 3.14 ]}
 		}`,
 		expectedVal:  nil,
 		expectSQLErr: false,
@@ -139,7 +139,7 @@ var obligationsNodeTests = []struct {
 		expectedErr:  ErrInvalidObligations,
 		regoRespJSON: `{
 			"allow": true,
-			"obligations": { "policy1_guid": { "stmt0": "bad obligations value" }}
+			"obligations": { "abac.policy1_guid": { "stmt0": "bad obligations value" }}
 		}`,
 		expectedVal:  nil,
 		expectSQLErr: false,
@@ -159,7 +159,7 @@ var obligationsNodeTests = []struct {
 		expectedErr:  nil,
 		regoRespJSON: `{
 			"allow": true,
-			"obligations": [ [], [] ]
+			"obligations": [ [], null, [] ]
 		}`,
 		expectedVal:  &ObligationsNode{},
 		expectSQLErr: false,
@@ -239,8 +239,9 @@ var obligationsNodeTests = []struct {
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": {
-				"policy1_guid": {},
-				"policy2_guid": {}
+				"abac.policy1_guid": {},
+				"abac.policy2_guid": null,
+				"abac.policy3_guid": {}
 			}
 		}`,
 		expectedVal:  &ObligationsNode{},
@@ -252,8 +253,8 @@ var obligationsNodeTests = []struct {
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": {
-				"policy1_guid": {},
-				"policy2_guid": {
+				"abac.policy1_guid": {},
+				"abac.policy2_guid": {
 					"stmt1": []
 				}
 			}
@@ -267,10 +268,10 @@ var obligationsNodeTests = []struct {
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": {
-				"policy1_guid": {
+				"abac.policy1_guid": {
 					"stmt0": []
 				},
-				"policy2_guid": {
+				"abac.policy2_guid": {
 					"stmt1": []
 				}
 			}
@@ -284,10 +285,10 @@ var obligationsNodeTests = []struct {
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": {
-				"policy1_guid": {
+				"abac.policy1_guid": {
 					"stmt0": [ "type:ddi.ipam; ctx.i < 1", "type:ddi.ipam; ctx.j > 2" ]
 				},
-				"policy2_guid": {}
+				"abac.policy2_guid": {}
 			}
 		}`,
 		expectedVal:  &ObligationsNode{
@@ -295,7 +296,7 @@ var obligationsNodeTests = []struct {
 			Children: []*ObligationsNode{
 				&ObligationsNode{
 					Kind: ObligationsOr,
-					Tag: "policy1_guid",
+					Tag: "abac.policy1_guid",
 					Children: []*ObligationsNode{
 						&ObligationsNode{
 							Kind: ObligationsOr,
@@ -323,10 +324,10 @@ var obligationsNodeTests = []struct {
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": {
-				"policy1_guid": {
+				"abac.policy1_guid": {
 					"stmt0": [ "ctx.i == 1", "ctx.j == 2", "ctx.k == 3" ]
 				},
-				"policy2_guid": {
+				"abac.policy2_guid": {
 					"stmt1": []
 				}
 			}
@@ -336,7 +337,7 @@ var obligationsNodeTests = []struct {
 			Children: []*ObligationsNode{
 				&ObligationsNode{
 					Kind: ObligationsOr,
-					Tag: "policy1_guid",
+					Tag: "abac.policy1_guid",
 					Children: []*ObligationsNode{
 						&ObligationsNode{
 							Kind: ObligationsOr,
@@ -368,10 +369,10 @@ var obligationsNodeTests = []struct {
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": {
-				"policy1_guid": {
+				"abac.policy1_guid": {
 					"stmt0": [ "ctx.a == 1" ]
 				},
-				"policy2_guid": {
+				"abac.policy2_guid": {
 					"stmt0": [ "ctx.b == 2", "ctx.c == 3" ],
 					"stmt1": [ "ctx.d == 4" ]
 				}
@@ -382,7 +383,7 @@ var obligationsNodeTests = []struct {
 			Children: []*ObligationsNode{
 				&ObligationsNode{
 					Kind: ObligationsOr,
-					Tag: "policy1_guid",
+					Tag: "abac.policy1_guid",
 					Children: []*ObligationsNode{
 						&ObligationsNode{
 							Kind: ObligationsOr,
@@ -398,7 +399,7 @@ var obligationsNodeTests = []struct {
 				},
 				&ObligationsNode{
 					Kind: ObligationsOr,
-					Tag: "policy2_guid",
+					Tag: "abac.policy2_guid",
 					Children: []*ObligationsNode{
 						&ObligationsNode{
 							Kind: ObligationsOr,
@@ -436,7 +437,7 @@ var obligationsNodeTests = []struct {
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": {
-				"policy1_guid": {
+				"abac.policy1_guid": {
 					"stmt0": [ "type:ddi.ipam; ctx.tags[\"a\"] == 1" ]
 				}
 			}
@@ -446,7 +447,7 @@ var obligationsNodeTests = []struct {
 			Children: []*ObligationsNode{
 				&ObligationsNode{
 					Kind: ObligationsOr,
-					Tag: "policy1_guid",
+					Tag: "abac.policy1_guid",
 					Children: []*ObligationsNode{
 						&ObligationsNode{
 							Kind: ObligationsOr,
@@ -470,7 +471,7 @@ var obligationsNodeTests = []struct {
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": {
-				"policy1_guid": {
+				"abac.policy1_guid": {
 					"stmt0": [ "ctx.a in 1, 2, 3" ]
 				}
 			}
@@ -480,7 +481,7 @@ var obligationsNodeTests = []struct {
 			Children: []*ObligationsNode{
 				&ObligationsNode{
 					Kind: ObligationsOr,
-					Tag: "policy1_guid",
+					Tag: "abac.policy1_guid",
 					Children: []*ObligationsNode{
 						&ObligationsNode{
 							Kind: ObligationsOr,

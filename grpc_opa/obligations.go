@@ -2,8 +2,8 @@ package grpc_opa_middleware
 
 import (
 	"encoding/json"
-	"reflect"
 	"sort"
+	"strings"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -69,7 +69,7 @@ func (o8n *ObligationsNode) ShallowLength() int {
 		return len(o8n.Children)
 	case ObligationsCondition:
 		return 1
-	} 
+	}
 
 	return 0
 }
@@ -164,6 +164,10 @@ func parseObligationsArray(arrIfc []interface{}) (*ObligationsNode, error) {
 	}
 
 	for _, subIfc := range arrIfc {
+		if IsNilInterface(subIfc) {
+			continue
+		}
+
 		subResult := &ObligationsNode{
 			Kind: ObligationsEmpty,
 		}
@@ -215,6 +219,14 @@ func parseObligationsMap(mapIfc map[string]interface{}) (*ObligationsNode, error
 	}
 
 	for policyName, subIfc := range mapIfc {
+		if IsNilInterface(subIfc) {
+			continue
+		}
+
+		if !strings.HasPrefix(policyName, "abac.") {
+			continue
+		}
+
 		stmtMapIfc, ok := subIfc.(map[string]interface{})
 		if !ok {
 			return nil, ErrInvalidObligations
@@ -273,11 +285,4 @@ func parseObligationsMap(mapIfc map[string]interface{}) (*ObligationsNode, error
 	}
 
 	return rootNode, nil
-}
-
-// IsNilInterface returns whether the interface parameter is nil
-// Panics if arg is not chan, func, interface, map, pointer, or slice.
-// See https://golang.org/pkg/reflect/#Value.IsNil
-func IsNilInterface(i interface{}) bool {
-	return i == nil || reflect.ValueOf(i).IsNil()
 }

@@ -2,6 +2,7 @@ package grpc_opa_middleware
 
 import (
 	"net/http"
+
 	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
 )
 
@@ -62,5 +63,12 @@ func WithDecisionInputHandler(decisionHandler DecisionInputHandler) Option {
 func WithClaimsVerifier(claimsVerifier ClaimsVerifier) Option {
 	return func(c *Config) {
 		c.claimsVerifier = claimsVerifier
+	}
+}
+
+// WithEntitledServices overrides default EntitledServices
+func WithEntitledServices(entitledServices []string) Option {
+	return func(c *Config) {
+		c.entitledServices = entitledServices
 	}
 }
