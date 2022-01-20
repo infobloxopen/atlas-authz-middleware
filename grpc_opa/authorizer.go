@@ -138,6 +138,7 @@ func NewDefaultAuthorizer(application string, opts ...Option) *DefaultAuthorizer
 		application:          application,
 		decisionInputHandler: cfg.decisionInputHandler,
 		claimsVerifier:       cfg.claimsVerifier,
+		entitledServices:     cfg.entitledServices,
 	}
 	return &a
 }
@@ -148,6 +149,7 @@ type DefaultAuthorizer struct {
 	opaEvaluator         OpaEvaluator
 	decisionInputHandler DecisionInputHandler
 	claimsVerifier       ClaimsVerifier
+	entitledServices     []string
 }
 
 type Config struct {
@@ -160,6 +162,7 @@ type Config struct {
 	authorizer           []Authorizer
 	decisionInputHandler DecisionInputHandler
 	claimsVerifier       ClaimsVerifier
+	entitledServices     []string
 }
 
 type ClaimsVerifier func([]string, []string) (string, []error)
@@ -205,8 +208,9 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 		FullMethod:  fullMethod,
 		Application: a.application,
 		// FIXME: implement athena_claims.AuthBearersFromCtx
-		JWT:       redactJWT(rawJWT),
-		RequestID: reqID,
+		JWT:              redactJWT(rawJWT),
+		RequestID:        reqID,
+		EntitledServices: a.entitledServices,
 	}
 
 	decisionInput, err := a.decisionInputHandler.GetDecisionInput(ctx, fullMethod, grpcReq)
@@ -289,6 +293,9 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 			trace.StringAttribute("out", string(raw)),
 		}, "out")
 	}
+
+	// adding raw entitled_features data to context if present
+	ctx = opaResp.AddRawEntitledFeatures(ctx)
 
 	// adding obligations data to context if present
 	ctx, err = addObligations(ctx, opaResp)
@@ -373,9 +380,10 @@ type Payload struct {
 	Endpoint    string `json:"endpoint"`
 	Application string `json:"application"`
 	// FullMethod is the full RPC method string, i.e., /package.service/method.
-	FullMethod string `json:"full_method"`
-	JWT        string `json:"jwt"`
-	RequestID  string `json:"request_id"`
+	FullMethod       string   `json:"full_method"`
+	JWT              string   `json:"jwt"`
+	RequestID        string   `json:"request_id"`
+	EntitledServices []string `json:"entitled_services"`
 	DecisionInput
 }
 
