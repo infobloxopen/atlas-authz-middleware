@@ -67,7 +67,7 @@ func WithClaimsVerifier(claimsVerifier ClaimsVerifier) Option {
 }
 
 // WithEntitledServices overrides default EntitledServices
-func WithEntitledServices(entitledServices []string) Option {
+func WithEntitledServices(entitledServices ...string) Option {
 	return func(c *Config) {
 		c.entitledServices = entitledServices
 	}

@@ -72,7 +72,7 @@ func Test_WithEntitledServices_payload(t *testing.T) {
 			auther = NewDefaultAuthorizer("app",
 				WithOpaClienter(&mockOpaClienter),
 				WithClaimsVerifier(utils_test.NullClaimsVerifier),
-				WithEntitledServices(inputEntitledServices),
+				WithEntitledServices(inputEntitledServices...),
 			)
 		}
 

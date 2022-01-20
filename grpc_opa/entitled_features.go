@@ -2,7 +2,6 @@ package grpc_opa_middleware
 
 import (
 	"context"
-	"fmt"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -41,7 +40,6 @@ func FlattenRawEntitledFeatures(efIfc interface{}) ([]string, error) {
 
 	efMapIfc, ok := efIfc.(map[string]interface{})
 	if !ok {
-		fmt.Printf("FlattenRawEntitledFeatures: fail efIfc.(map[string]interface{}) efIfc=%#v\n", efIfc)
 		return nil, ErrInvalidEntitledFeatures
 	}
 
@@ -53,7 +51,6 @@ func FlattenRawEntitledFeatures(efIfc interface{}) ([]string, error) {
 
 		featArrIfc, ok := featIfc.([]interface{})
 		if !ok {
-			fmt.Printf("FlattenRawEntitledFeatures: fail featIfc.([]interface) featIfc=%#v\n", featIfc)
 			return nil, ErrInvalidEntitledFeatures
 		}
 
@@ -64,7 +61,6 @@ func FlattenRawEntitledFeatures(efIfc interface{}) ([]string, error) {
 
 			oneFeatStr, ok := oneFeatIfc.(string)
 			if !ok {
-				fmt.Printf("FlattenRawEntitledFeatures: fail oneFeatIfc.(string) oneFeatIfc=%#v\n", oneFeatIfc)
 				return nil, ErrInvalidEntitledFeatures
 			}
 
