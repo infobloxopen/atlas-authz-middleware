@@ -3,9 +3,18 @@ package grpc_opa_middleware
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"sort"
 	"testing"
+)
+
+const (
+	succeed = "\u2713"
+	failed  = "\u2717"
+	red     = "\033[31m"
+	green   = "\033[32m"
+	reset   = "\033[0m"
 )
 
 func Test_entitled_features_context(t *testing.T) {
@@ -60,7 +69,7 @@ var entitledFeaturesTest = []struct {
 	expectFlattenVal []string
 }{
 	{
-		regoRespJSON:     `{
+		regoRespJSON: `{
 			"allow": true
 		}`,
 		expectNilCtxVal:  true,
@@ -68,7 +77,7 @@ var entitledFeaturesTest = []struct {
 		expectFlattenVal: nil,
 	},
 	{
-		regoRespJSON:     `{
+		regoRespJSON: `{
 			"allow": true,
 			"entitled_features": null
 		}`,
@@ -77,7 +86,7 @@ var entitledFeaturesTest = []struct {
 		expectFlattenVal: nil,
 	},
 	{
-		regoRespJSON:     `{
+		regoRespJSON: `{
 			"allow": true,
 			"entitled_features": {}
 		}`,
@@ -86,7 +95,7 @@ var entitledFeaturesTest = []struct {
 		expectFlattenVal: []string{},
 	},
 	{
-		regoRespJSON:     `{
+		regoRespJSON: `{
 			"allow": true,
 			"entitled_features": {"null": null}
 		}`,
@@ -95,7 +104,7 @@ var entitledFeaturesTest = []struct {
 		expectFlattenVal: []string{},
 	},
 	{
-		regoRespJSON:     `{
+		regoRespJSON: `{
 			"allow": true,
 			"entitled_features": "bad entitled_features value"
 		}`,
@@ -104,7 +113,7 @@ var entitledFeaturesTest = []struct {
 		expectFlattenVal: nil,
 	},
 	{
-		regoRespJSON:     `{
+		regoRespJSON: `{
 			"allow": true,
 			"entitled_features": {"str": "str"}
 		}`,
@@ -113,7 +122,7 @@ var entitledFeaturesTest = []struct {
 		expectFlattenVal: nil,
 	},
 	{
-		regoRespJSON:     `{
+		regoRespJSON: `{
 			"allow": true,
 			"entitled_features": {
 				"null": null,
@@ -125,4 +134,140 @@ var entitledFeaturesTest = []struct {
 		expectFlattenErr: false,
 		expectFlattenVal: []string{"lic.dhcp", "lic.ipam", "rpz.bogon", "rpz.malware"},
 	},
+}
+
+func Test_opbench_ToJSONBArrStmt(t *testing.T) {
+	tests := []struct {
+		name    string
+		rego    string
+		want    string
+		wantErr bool
+	}{
+		{
+			name: "OneSvcOneFeatureOk",
+			rego: `{
+				"allow": true,
+				"entitled_features": {
+					"license": [ "td" ]
+				}
+			}`,
+			want:    "array['license.td']",
+			wantErr: false,
+		},
+		{
+			name: "OneSvcManyFeaturesOk",
+			rego: `{
+				"allow": true,
+				"entitled_features": {
+					"license": [ "td", "dhcp", "dns" ]
+				}
+			}`,
+			want:    "array['license.dhcp', 'license.dns', 'license.td']",
+			wantErr: false,
+		},
+		{
+			name: "ManySvcsManyFeaturesOk",
+			rego: `{
+				"allow": true,
+				"entitled_features": {
+					"license": [ "td", "dhcp", "dns" ],
+					"license2": [ "td" ]
+				}
+			}`,
+			want:    "array['license.dhcp', 'license.dns', 'license.td', 'license2.td']",
+			wantErr: false,
+		},
+		{
+			name: "ManySvcsEmptyFeaturesOk",
+			rego: `{
+				"allow": true,
+				"entitled_features": {
+					"license": [],
+					"license2": []
+				}
+			}`,
+			want:    "",
+			wantErr: false,
+		},
+		{
+			name: "EmptyEntitlsOk",
+			rego: `{
+				"allow": true,
+				"entitled_features": {}
+			}`,
+			want:    "",
+			wantErr: false,
+		},
+		{
+			name: "NulEntitlsOk",
+			rego: `{
+				"allow": true,
+				"entitled_features": null
+			}`,
+			want:    "",
+			wantErr: false,
+		},
+		{
+			name: "MissingEntitlsOk",
+			rego: `{
+				"allow": true
+			}`,
+			want:    "",
+			wantErr: false,
+		},
+		{
+			name: "EntitlsNulSvcOk",
+			rego: `{
+				"allow": true,
+ 	            "entitled_features": {"null": null}
+			}`,
+			want:    "",
+			wantErr: false,
+		},
+		{
+			name: "InvalidValErr",
+			rego: `{
+				"allow": true,
+				"entitled_features": "invalid val"
+			}`,
+			want:    "",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var opaResp OPAResponse
+			jsonErr := json.Unmarshal([]byte(tt.rego), &opaResp)
+			if jsonErr != nil {
+				t.Fatalf("JSON unmarshal error passing data: %s", tt.rego)
+			}
+			ctx := opaResp.AddRawEntitledFeatures(context.Background())
+
+			got, log, err := EntitlsCtxOp(ctx).ToJSONBArrStmt()
+			t.Log(log)
+
+			if err != nil {
+				if tt.wantErr {
+					t.Logf("\t%s test is passed", succeed)
+					return
+				} else {
+					t.Errorf("\t%s unexpected error"+
+						"\nGot: "+red+"%v"+reset+"\nWant: "+green+"%t"+reset,
+						failed, err, tt.wantErr)
+					return
+				}
+			}
+
+			if !reflect.DeepEqual(got, tt.want) {
+				vs := fmt.Sprintf("\t%s difference in got vs want statment"+
+					"\nGot: "+red+" \n\n%s\n\n "+reset+"\nWant: "+green+"\n\n%s\n\n"+reset,
+					failed, got, tt.want)
+				t.Errorf(vs)
+				return
+			} else {
+				t.Logf("\t%s test is passed", succeed)
+			}
+		})
+	}
 }
