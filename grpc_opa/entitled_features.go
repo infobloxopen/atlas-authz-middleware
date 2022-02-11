@@ -84,7 +84,7 @@ type opbench struct {
 // EntitlsCtxOp is a simple operator to manipulate
 // over entitled features in context. It retrieves
 // entitled features from the context and converts
-// them to a structure that is easy to operato on.
+// them to a structure that is easy to operate on.
 // Returned value includes only unimported fields
 // and is designed to chain other methods that it
 // has.
