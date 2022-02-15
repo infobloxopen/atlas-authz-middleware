@@ -72,3 +72,10 @@ func WithEntitledServices(entitledServices ...string) Option {
 		c.entitledServices = entitledServices
 	}
 }
+
+// WithAcctEntitlementsApiPath overrides default AcctEntitlementsApiPath
+func WithAcctEntitlementsApiPath(acctEntitlementsApi string) Option {
+	return func(c *Config) {
+		c.acctEntitlementsApi = acctEntitlementsApi
+	}
+}

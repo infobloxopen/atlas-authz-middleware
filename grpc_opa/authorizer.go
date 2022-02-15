@@ -120,6 +120,7 @@ func NewDefaultAuthorizer(application string, opts ...Option) *DefaultAuthorizer
 		address:              opa_client.DefaultAddress,
 		decisionInputHandler: defDecisionInputer,
 		claimsVerifier:       UnverifiedClaimFromBearers,
+		acctEntitlementsApi:  DefaultAcctEntitlementsApiPath,
 	}
 	for _, opt := range opts {
 		opt(cfg)
@@ -139,6 +140,7 @@ func NewDefaultAuthorizer(application string, opts ...Option) *DefaultAuthorizer
 		decisionInputHandler: cfg.decisionInputHandler,
 		claimsVerifier:       cfg.claimsVerifier,
 		entitledServices:     cfg.entitledServices,
+		acctEntitlementsApi:  cfg.acctEntitlementsApi,
 	}
 	return &a
 }
@@ -150,6 +152,7 @@ type DefaultAuthorizer struct {
 	decisionInputHandler DecisionInputHandler
 	claimsVerifier       ClaimsVerifier
 	entitledServices     []string
+	acctEntitlementsApi  string
 }
 
 type Config struct {
@@ -163,12 +166,13 @@ type Config struct {
 	decisionInputHandler DecisionInputHandler
 	claimsVerifier       ClaimsVerifier
 	entitledServices     []string
+	acctEntitlementsApi  string
 }
 
 type ClaimsVerifier func([]string, []string) (string, []error)
 
 // 	FullMethod is the full RPC method string, i.e., /package.service/method.
-// e.g. fullmethod:  /service.TagService/ListRetiredTags PARGs endpoint: TagService/ListRetiredTags
+// e.g. fullmethod:  /service.TagService/ListRetiredTags PARGs endpoint: TagService.ListRetiredTags
 func parseEndpoint(fullMethod string) string {
 	byPackage := strings.Split(fullMethod, ".")
 	endpoint := byPackage[len(byPackage)-1]
@@ -186,6 +190,9 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 		"application": a.application,
 	})
 
+	// This fetches auth data from auth headers in metadata from context:
+	// bearer = data from "authorization bearer" metadata header
+	// newBearer = data from "set-authorization bearer" metadata header
 	bearer, newBearer := athena_claims.AuthBearersFromCtx(ctx)
 
 	claimsVerifier := a.claimsVerifier

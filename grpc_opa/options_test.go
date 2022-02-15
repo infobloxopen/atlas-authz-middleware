@@ -62,7 +62,7 @@ func Test_WithEntitledServices_payload(t *testing.T) {
 
 		auther := NewDefaultAuthorizer("app",
 			WithOpaClienter(&mockOpaClienter),
-			WithClaimsVerifier(utils_test.NullClaimsVerifier),
+			WithClaimsVerifier(NullClaimsVerifier),
 		)
 
 		inputEntitledServices, ok := tstc.inputEntitledServices.([]string)
@@ -71,7 +71,7 @@ func Test_WithEntitledServices_payload(t *testing.T) {
 				idx, tstc.name, inputEntitledServices)
 			auther = NewDefaultAuthorizer("app",
 				WithOpaClienter(&mockOpaClienter),
-				WithClaimsVerifier(utils_test.NullClaimsVerifier),
+				WithClaimsVerifier(NullClaimsVerifier),
 				WithEntitledServices(inputEntitledServices...),
 			)
 		}
@@ -100,6 +100,10 @@ func (m optionsMockOpaClienter) Health() error {
 
 func (m optionsMockOpaClienter) Query(ctx context.Context, data interface{}, resp interface{}) error {
 	return m.CustomQuery(ctx, "", data, resp)
+}
+
+func (m optionsMockOpaClienter) CustomQueryRaw(ctx context.Context, document string, data []byte) ([]byte, error) {
+	return []byte(`{"allow": true}`), nil
 }
 
 func (m optionsMockOpaClienter) CustomQuery(ctx context.Context, document string, data interface{}, resp interface{}) error {

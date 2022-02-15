@@ -26,11 +26,35 @@ func TestRedactJWT(t *testing.T) {
 }
 
 func Test_parseEndpoint(t *testing.T) {
-	expected := "TagService.ListRetiredTags"
-	if endpoint := parseEndpoint("/service.TagService/ListRetiredTags"); expected != endpoint {
-		t.Errorf("got: %s, wanted: %s", endpoint, expected)
+	tests := []struct{
+		fullMethod string
+		endpoint   string
+	}{
+		{
+			fullMethod: "/service.TagService/ListRetiredTags",
+			endpoint:   "TagService.ListRetiredTags",
+		},
+		{
+			fullMethod: "/TagService/ListRetiredTags",
+			endpoint:   ".TagService.ListRetiredTags",
+		},
+		{
+			fullMethod: "/ListRetiredTags",
+			endpoint:   ".ListRetiredTags",
+		},
+		{
+			fullMethod: "ListRetiredTags",
+			endpoint:   "ListRetiredTags",
+		},
 	}
 
+	for _, tst := range tests {
+		gotEndpoint := parseEndpoint(tst.fullMethod)
+		if gotEndpoint != tst.endpoint {
+			t.Errorf("parseEndpoint(%s)='%s', wanted='%s'",
+				tst.fullMethod, gotEndpoint, tst.endpoint)
+		}
+	}
 }
 
 func Test_addObligations(t *testing.T) {
@@ -157,7 +181,7 @@ func TestAffirmAuthorization(t *testing.T) {
 	for nth, tm := range testMap {
 		auther := NewDefaultAuthorizer("app",
 			WithOpaEvaluator(tm.opaEvaltor),
-			WithClaimsVerifier(utils_test.NullClaimsVerifier),
+			WithClaimsVerifier(NullClaimsVerifier),
 		)
 
 		resultCtx, resultErr := auther.AffirmAuthorization(ctx, "FakeMethod", nil)
@@ -221,16 +245,18 @@ func TestDebugLogging(t *testing.T) {
 	}
 
 	loggertesthook := logrustesthook.NewGlobal()
+	stdLoggr := logrus.StandardLogger()
 	ctx := context.WithValue(context.Background(), utils_test.TestingTContextKey, t)
-	ctx = ctxlogrus.ToContext(ctx, logrus.NewEntry(logrus.StandardLogger()))
+	ctx = ctxlogrus.ToContext(ctx, logrus.NewEntry(stdLoggr))
 
 	for nth, tm := range testMap {
 		mockOpaClienter := MockOpaClienter{
+			Loggr:        stdLoggr,
 			RegoRespJSON: tm.regoRespJSON,
 		}
 		auther := NewDefaultAuthorizer("app",
 			WithOpaClienter(&mockOpaClienter),
-			WithClaimsVerifier(utils_test.NullClaimsVerifier),
+			WithClaimsVerifier(NullClaimsVerifier),
 		)
 		loggertesthook.Reset()
 
@@ -285,6 +311,7 @@ func TestDebugLogging(t *testing.T) {
 }
 
 type MockOpaClienter struct{
+	Loggr        *logrus.Logger
 	RegoRespJSON string
 }
 
@@ -304,7 +331,13 @@ func (m MockOpaClienter) Query(ctx context.Context, data interface{}, resp inter
 	return m.CustomQuery(ctx, "", data, resp)
 }
 
+func (m MockOpaClienter) CustomQueryRaw(ctx context.Context, document string, data []byte) ([]byte, error) {
+	return []byte(m.RegoRespJSON), nil
+}
+
 func (m MockOpaClienter) CustomQuery(ctx context.Context, document string, data interface{}, resp interface{}) error {
-	return json.Unmarshal([]byte(m.RegoRespJSON), resp)
+	err := json.Unmarshal([]byte(m.RegoRespJSON), resp)
+	m.Loggr.Debugf("CustomQuery: resp=%#v", resp)
+	return err
 }
 

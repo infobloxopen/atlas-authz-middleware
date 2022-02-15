@@ -8,7 +8,3 @@ const TestCaseIndexContextKey = TestCaseIndexContextKeyType("TestCaseIndex")
 
 type TestCaseNameContextKeyType string
 const TestCaseNameContextKey = TestCaseNameContextKeyType("TestCaseName")
-
-func NullClaimsVerifier([]string, []string) (string, []error) {
-	return "", nil
-}

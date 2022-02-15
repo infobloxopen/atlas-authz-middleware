@@ -95,7 +95,7 @@ func TestPolicyReturningRegoSet(t *testing.T) {
 	auther := opamw.NewDefaultAuthorizer("app",
 		opamw.WithOpaClienter(cli),
 		opamw.WithDecisionInputHandler(mockDecInp),
-		opamw.WithClaimsVerifier(utils_test.NullClaimsVerifier),
+		opamw.WithClaimsVerifier(opamw.NullClaimsVerifier),
 	)
 
 	// If authorization is permitted, then this verifies that the OPA JSON results were correctly decoded,

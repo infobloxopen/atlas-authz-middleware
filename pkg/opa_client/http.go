@@ -37,6 +37,7 @@ type Client struct {
 // implement at your own discretion
 type Clienter interface {
 	Address() string
+	CustomQueryRaw(ctx context.Context, document string, data []byte) ([]byte, error)
 	CustomQuery(ctx context.Context, document string, data interface{}, resp interface{}) error
 	Health() error
 	Query(ctx context.Context, data interface{}, resp interface{}) error
@@ -105,21 +106,15 @@ func (c *Client) Query(ctx context.Context, data, resp interface{}) error {
 	return c.CustomQuery(ctx, "", data, resp)
 }
 
-// CustomQuery requests evaluation at a document of the caller's choice
+// CustomQueryRaw requests evaluation at a document of the caller's choice
 //
 // https://www.openpolicyagent.org/docs/latest/rest-api/#query-api
-func (c *Client) CustomQuery(ctx context.Context, document string, data, resp interface{}) error {
-
+func (c *Client) CustomQueryRaw(ctx context.Context, document string, postReqBody []byte) ([]byte, error) {
 	ref := fmt.Sprintf("%s/%s", c.Address(), document)
 
-	bs, err := json.Marshal(data)
+	req, err := http.NewRequest("POST", ref, bytes.NewBuffer(postReqBody))
 	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequest("POST", ref, bytes.NewBuffer(bs))
-	if err != nil {
-		return err
+		return nil, err
 	}
 
 	md, _ := metadata.FromIncomingContext(ctx)
@@ -136,10 +131,10 @@ func (c *Client) CustomQuery(ctx context.Context, document string, data, resp in
 
 	postResp, err := c.do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer postResp.Body.Close()
-	bs, _ = ioutil.ReadAll(postResp.Body)
+	bs, _ := ioutil.ReadAll(postResp.Body)
 
 	buf := bytes.NewBuffer(bs)
 	copy := buf.String()
@@ -147,19 +142,32 @@ func (c *Client) CustomQuery(ctx context.Context, document string, data, resp in
 
 	// Successful code, decode as document
 	if postResp.StatusCode >= 200 && postResp.StatusCode < 400 {
-		if resp == nil {
-			return nil
-		}
-		return dec.Decode(resp)
+		return bs, nil
 	}
 
 	// unsuccessful code, attempt to decode as types.ErrorV1
 	var opaErrV1 types.ErrorV1
 	if err := dec.Decode(&opaErrV1); err != nil {
-		return fmt.Errorf("unparseable error from OPA %d: %s", postResp.StatusCode, copy)
+		return nil, fmt.Errorf("unparseable error from OPA %d: %s", postResp.StatusCode, copy)
 	}
 
-	return &opaErrV1
+	return nil, &opaErrV1
+}
+
+// CustomQuery requests evaluation at a document of the caller's choice
+//
+// https://www.openpolicyagent.org/docs/latest/rest-api/#query-api
+func (c *Client) CustomQuery(ctx context.Context, document string, data, resp interface{}) error {
+	bs, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	postRespBody, err := c.CustomQueryRaw(ctx, document, bs)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(postRespBody, resp)
 }
 
 // https://github.com/golang/go/blob/master/src/net/http/transport.go#L498
