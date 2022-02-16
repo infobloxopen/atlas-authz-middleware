@@ -244,7 +244,7 @@ func Test_opbench_ToJSONBArrStmt(t *testing.T) {
 			}
 			ctx := opaResp.AddRawEntitledFeatures(context.Background())
 
-			got, log, err := EntitlsCtxOp(ctx).ToJSONBArrStmt()
+			got, log, err := EntitlementsCtxOp(ctx).ToJSONBArrStmt()
 			t.Log(log)
 
 			if err != nil {

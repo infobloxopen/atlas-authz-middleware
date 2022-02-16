@@ -81,14 +81,13 @@ type opbench struct {
 	log string
 }
 
-// EntitlsCtxOp is a simple operator to manipulate
-// over entitled features in context. It retrieves
-// entitled features from the context and converts
-// them to a structure that is easy to operate on.
-// Returned value includes only unimported fields
-// and is designed to chain other methods that it
-// has.
-func EntitlsCtxOp(ctx context.Context) *opbench {
+// EntitlementsCtxOp is a simple operator to manipulate
+// over entitled features in context. It retrieves entitled
+// features from the context and converts them to a structure
+// that is easy to operate on. Returned value includes only
+// unimported fields and is designed to chain other methods
+// that it has.
+func EntitlementsCtxOp(ctx context.Context) *opbench {
 	op := opbench{
 		val: map[string][]string{},
 		log: fmt.Sprintf("ctx (%s) -> ", EntitledFeaturesKey),
