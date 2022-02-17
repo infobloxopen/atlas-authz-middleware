@@ -124,12 +124,12 @@ func (u *AcctEntitlementsApiResult) UnmarshalJSON(rawBytes []byte) error {
 	return nil
 }
 
-// GetAcctEntitlementsRaw queries account entitled features data
+// GetAcctEntitlementsBytes queries account entitled features data
 // and returns the raw JSON string response
-func (a *DefaultAuthorizer) GetAcctEntitlementsRaw(ctx context.Context) ([]byte, error) {
+func (a *DefaultAuthorizer) GetAcctEntitlementsBytes(ctx context.Context) ([]byte, error) {
 	lgNtry := ctxlogrus.Extract(ctx)
 
-	rawBytes, err := a.clienter.CustomQueryRaw(ctx, a.acctEntitlementsApi, nil)
+	rawBytes, err := a.clienter.CustomQueryBytes(ctx, a.acctEntitlementsApi, nil)
 	if err != nil {
 		lgNtry.WithError(err).Error("get_acct_entitlements_raw_fail")
 		return nil, err

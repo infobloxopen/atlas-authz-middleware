@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"reflect"
+	"strings"
 	"testing"
 
+	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
 	"github.com/infobloxopen/atlas-authz-middleware/utils_test"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
@@ -26,7 +27,7 @@ func TestRedactJWT(t *testing.T) {
 }
 
 func Test_parseEndpoint(t *testing.T) {
-	tests := []struct{
+	tests := []struct {
 		fullMethod string
 		endpoint   string
 	}{
@@ -310,7 +311,7 @@ func TestDebugLogging(t *testing.T) {
 	}
 }
 
-type MockOpaClienter struct{
+type MockOpaClienter struct {
 	Loggr        *logrus.Logger
 	RegoRespJSON string
 }
@@ -327,17 +328,20 @@ func (m MockOpaClienter) Health() error {
 	return nil
 }
 
-func (m MockOpaClienter) Query(ctx context.Context, data interface{}, resp interface{}) error {
-	return m.CustomQuery(ctx, "", data, resp)
+func (m MockOpaClienter) Query(ctx context.Context, reqData, resp interface{}) error {
+	return m.CustomQuery(ctx, "", reqData, resp)
 }
 
-func (m MockOpaClienter) CustomQueryRaw(ctx context.Context, document string, data []byte) ([]byte, error) {
+func (m MockOpaClienter) CustomQueryStream(ctx context.Context, document string, postReqBody []byte, respRdrFn opa_client.StreamReaderFn) error {
+	return nil
+}
+
+func (m MockOpaClienter) CustomQueryBytes(ctx context.Context, document string, reqData interface{}) ([]byte, error) {
 	return []byte(m.RegoRespJSON), nil
 }
 
-func (m MockOpaClienter) CustomQuery(ctx context.Context, document string, data interface{}, resp interface{}) error {
+func (m MockOpaClienter) CustomQuery(ctx context.Context, document string, reqData, resp interface{}) error {
 	err := json.Unmarshal([]byte(m.RegoRespJSON), resp)
 	m.Loggr.Debugf("CustomQuery: resp=%#v", resp)
 	return err
 }
-

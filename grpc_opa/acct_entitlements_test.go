@@ -2,6 +2,7 @@ package grpc_opa_middleware
 
 import (
 	"context"
+	"encoding/json"
 	"io/ioutil"
 	"reflect"
 	"testing"
@@ -51,13 +52,54 @@ func TestGetAcctEntitlementsOpaRaw(t *testing.T) {
 		WithOpaClienter(cli),
 	)
 
-	rawBytes, err := auther.GetAcctEntitlementsRaw(ctx)
+	rawBytes, err := auther.GetAcctEntitlementsBytes(ctx)
 	t.Logf("rawBytes=%s", string(rawBytes))
 
-	expected := `{"result":{"2001016":{"environment":["ac","heated-seats"],"wheel":["abs","alloy","tpms"]},"2001040":{"environment":["ac","side-mirror-defogger"],"powertrain":["automatic","turbo"]}}}`
+	expectJson := `{"result":{"2001016":{"environment":["ac","heated-seats"],"wheel":["abs","alloy","tpms"]},"2001040":{"environment":["ac","side-mirror-defogger"],"powertrain":["automatic","turbo"]}}}`
 
-	if string(rawBytes) != expected {
-		t.Errorf("\ngot:  %s\nwant: %s", string(rawBytes), expected)
+	if string(rawBytes) != expectJson {
+		t.Errorf("FAIL:\nrawBytes:  %s\nexpectJson: %s", string(rawBytes), expectJson)
+	}
+
+	var actualAcctResult AcctEntitlementsApiResult
+	err = json.Unmarshal(rawBytes, &actualAcctResult)
+	t.Logf("actualAcctResult.Result=%#v", actualAcctResult.Result)
+
+	expectAcctResult := AcctEntitlementsApiResult{
+		Result: &AcctEntitlementsType{
+			"2001016": {
+				"environment": {"ac", "heated-seats"},
+				"wheel":       {"abs", "alloy", "tpms"},
+			},
+			"2001040": {
+				"environment": {"ac", "side-mirror-defogger"},
+				"powertrain":  {"automatic", "turbo"},
+			},
+		},
+	}
+	if !reflect.DeepEqual(actualAcctResult.Result, expectAcctResult.Result) {
+		t.Errorf("FAIL:\nactualAcctResult.Result:  %#v\nexpectAcctResult.Result: %#v",
+			actualAcctResult.Result, expectAcctResult.Result)
+	}
+
+	var actualOpaResp OPAResponse
+	err = json.Unmarshal(rawBytes, &actualOpaResp)
+	t.Logf("actualOpaResp=%#v", actualOpaResp)
+
+	expectOpaResp := OPAResponse{
+		"result": map[string]interface{}{
+			"2001016": map[string]interface{}{
+				"environment": []interface{}{"ac", "heated-seats"},
+				"wheel":       []interface{}{"abs", "alloy", "tpms"},
+			},
+			"2001040": map[string]interface{}{
+				"environment": []interface{}{"ac", "side-mirror-defogger"},
+				"powertrain":  []interface{}{"automatic", "turbo"},
+			},
+		},
+	}
+	if !reflect.DeepEqual(actualOpaResp, expectOpaResp) {
+		t.Errorf("FAIL:\nactualOpaResp:  %#v\nexpectOpaResp: %#v", actualOpaResp, expectOpaResp)
 	}
 }
 
@@ -165,17 +207,17 @@ func TestGetAcctEntitlementsMockOpaClient(t *testing.T) {
 		t.Logf("%d: %q: actualErr=%#v, actualVal=%#v", nth, tm.name, actualVal, actualErr)
 
 		if tm.expectErr && actualErr == nil {
-			t.Errorf("%d: %q: expected err, but got no err", nth, tm.name)
+			t.Errorf("%d: %q: FAIL: expected err, but got no err", nth, tm.name)
 		} else if !tm.expectErr && actualErr != nil {
-			t.Errorf("%d: %q: got unexpected err=%s", nth, tm.name, actualErr)
+			t.Errorf("%d: %q: FAIL: got unexpected err=%s", nth, tm.name, actualErr)
 		}
 
 		if actualErr != nil && actualVal != nil {
-			t.Errorf("%d: %q: returned val should be nil if err returned", nth, tm.name)
+			t.Errorf("%d: %q: FAIL: returned val should be nil if err returned", nth, tm.name)
 		}
 
 		if !reflect.DeepEqual(actualVal, tm.expectedVal) {
-			t.Errorf("%d: %q: expectedVal=%#v actualVal=%#v",
+			t.Errorf("%d: %q: FAIL: expectedVal=%#v actualVal=%#v",
 				nth, tm.name, tm.expectedVal, actualVal)
 		}
 	}
