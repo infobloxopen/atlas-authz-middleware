@@ -171,6 +171,7 @@ func TestGetAcctEntitlementsMockOpaClient(t *testing.T) {
 			expectErr: false,
 			expectedVal: &AcctEntitlementsType{
 				"acct1": {"svc1a": {"feat1a1", "feat1a2"}},
+				"acct2": nil,
 			},
 		},
 		{
@@ -181,7 +182,8 @@ func TestGetAcctEntitlementsMockOpaClient(t *testing.T) {
 			}}`,
 			expectErr: false,
 			expectedVal: &AcctEntitlementsType{
-				"acct2": {"svc2b": {"feat2b1", "feat2b2"}},
+				"acct2": {"svc2a": nil,
+					"svc2b": {"feat2b1", "feat2b2"}},
 			},
 		},
 		{
@@ -193,7 +195,7 @@ func TestGetAcctEntitlementsMockOpaClient(t *testing.T) {
 		{
 			name:         `no result key`,
 			regoRespJSON: `{ "rresult": null }`,
-			expectErr:    true,
+			expectErr:    false,
 			expectedVal:  nil,
 		},
 		{

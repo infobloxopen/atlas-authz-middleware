@@ -1,4 +1,10 @@
 // authz_mw_cli - atlas-authz-middleware CLI for testing purposes
+//
+// To build/run:
+// $ cd .../atlas-authz-middleware
+// $ make bin
+// $ bin/authz_mw_cli
+
 package main
 
 import (
