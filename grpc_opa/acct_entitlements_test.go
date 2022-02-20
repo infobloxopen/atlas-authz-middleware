@@ -14,7 +14,7 @@ import (
 	logrus "github.com/sirupsen/logrus"
 )
 
-func TestGetAcctEntitlementsOpaRaw(t *testing.T) {
+func TestGetAcctEntitlementsOpa(t *testing.T) {
 	stdLoggr := logrus.StandardLogger()
 	ctx, cancel := context.WithCancel(context.Background())
 	ctx = context.WithValue(ctx, utils_test.TestingTContextKey, t)
@@ -52,10 +52,13 @@ func TestGetAcctEntitlementsOpaRaw(t *testing.T) {
 		WithOpaClienter(cli),
 	)
 
-	rawBytes, err := auther.GetAcctEntitlementsBytes(ctx)
+	rawBytes, err := auther.GetAcctEntitlementsBytes(ctx, nil, nil)
+	if err != nil {
+		t.Errorf("FAIL: GetAcctEntitlementsBytes() unexpected err=%v", err)
+	}
 	t.Logf("rawBytes=%s", string(rawBytes))
 
-	expectJson := `{"result":{"2001016":{"environment":["ac","heated-seats"],"wheel":["abs","alloy","tpms"]},"2001040":{"environment":["ac","side-mirror-defogger"],"powertrain":["automatic","turbo"]}}}`
+	expectJson := `{"result":{"2001016":{"environment":["ac","heated-seats"],"wheel":["abs","alloy","tpms"]},"2001040":{"environment":["ac","side-mirror-defogger"],"powertrain":["automatic","turbo"]},"2001230":{"powertrain":["manual","v8"],"wheel":["run-flat"]}}}`
 
 	if string(rawBytes) != expectJson {
 		t.Errorf("FAIL:\nrawBytes:  %s\nexpectJson: %s", string(rawBytes), expectJson)
@@ -74,6 +77,10 @@ func TestGetAcctEntitlementsOpaRaw(t *testing.T) {
 			"2001040": {
 				"environment": {"ac", "side-mirror-defogger"},
 				"powertrain":  {"automatic", "turbo"},
+			},
+			"2001230": {
+				"powertrain": {"manual", "v8"},
+				"wheel":      {"run-flat"},
 			},
 		},
 	}
@@ -96,10 +103,35 @@ func TestGetAcctEntitlementsOpaRaw(t *testing.T) {
 				"environment": []interface{}{"ac", "side-mirror-defogger"},
 				"powertrain":  []interface{}{"automatic", "turbo"},
 			},
+			"2001230": map[string]interface{}{
+				"powertrain": []interface{}{"manual", "v8"},
+				"wheel":      []interface{}{"run-flat"},
+			},
 		},
 	}
 	if !reflect.DeepEqual(actualOpaResp, expectOpaResp) {
 		t.Errorf("FAIL:\nactualOpaResp:  %#v\nexpectOpaResp: %#v", actualOpaResp, expectOpaResp)
+	}
+
+	actualSpecific, err := auther.GetAcctEntitlements(ctx,
+		[]string{"2001040", "2001230"}, []string{"powertrain", "wheel"})
+	if err != nil {
+		t.Errorf("FAIL: GetAcctEntitlements() unexpected err=%v", err)
+	}
+	t.Logf("actualSpecific=%#v", actualSpecific)
+
+	expectSpecific := &AcctEntitlementsType{
+		"2001040": {
+			"powertrain": {"automatic", "turbo"},
+		},
+		"2001230": {
+			"powertrain": {"manual", "v8"},
+			"wheel":      {"run-flat"},
+		},
+	}
+	if !reflect.DeepEqual(actualSpecific, expectSpecific) {
+		t.Errorf("FAIL:\nactualSpecific:  %#v\nexpectSpecific: %#v",
+			actualSpecific, expectSpecific)
 	}
 }
 
@@ -203,7 +235,7 @@ func TestGetAcctEntitlementsMockOpaClient(t *testing.T) {
 			WithOpaClienter(&mockOpaClienter),
 		)
 
-		actualVal, actualErr := auther.GetAcctEntitlements(ctx)
+		actualVal, actualErr := auther.GetAcctEntitlements(ctx, nil, nil)
 		t.Logf("%d: %q: actualErr=%#v, actualVal=%#v", nth, tm.name, actualVal, actualErr)
 
 		if tm.expectErr && actualErr == nil {
