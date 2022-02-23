@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
+	"io/ioutil"
 	"reflect"
+	"strings"
 	"testing"
 
+	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
 	"github.com/infobloxopen/atlas-authz-middleware/utils_test"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
@@ -26,11 +28,51 @@ func TestRedactJWT(t *testing.T) {
 }
 
 func Test_parseEndpoint(t *testing.T) {
-	expected := "TagService.ListRetiredTags"
-	if endpoint := parseEndpoint("/service.TagService/ListRetiredTags"); expected != endpoint {
-		t.Errorf("got: %s, wanted: %s", endpoint, expected)
+	tests := []struct {
+		fullMethod string
+		endpoint   string
+	}{
+		{
+			fullMethod: "/service.TagService/ListRetiredTags",
+			endpoint:   "TagService.ListRetiredTags",
+		},
+		{
+			fullMethod: "/TagService/ListRetiredTags",
+			endpoint:   ".TagService.ListRetiredTags",
+		},
+		{
+			fullMethod: ".TagService.ListRetiredTags",
+			endpoint:   "ListRetiredTags",
+		},
+		{
+			fullMethod: "TagService/ListRetiredTags",
+			endpoint:   "TagService.ListRetiredTags",
+		},
+		{
+			fullMethod: "TagService.ListRetiredTags",
+			endpoint:   "ListRetiredTags",
+		},
+		{
+			fullMethod: "/ListRetiredTags",
+			endpoint:   ".ListRetiredTags",
+		},
+		{
+			fullMethod: ".ListRetiredTags",
+			endpoint:   "ListRetiredTags",
+		},
+		{
+			fullMethod: "ListRetiredTags",
+			endpoint:   "ListRetiredTags",
+		},
 	}
 
+	for _, tst := range tests {
+		gotEndpoint := parseEndpoint(tst.fullMethod)
+		if gotEndpoint != tst.endpoint {
+			t.Errorf("parseEndpoint(%s)='%s', wanted='%s'",
+				tst.fullMethod, gotEndpoint, tst.endpoint)
+		}
+	}
 }
 
 func Test_addObligations(t *testing.T) {
@@ -100,7 +142,101 @@ func TestOPAResponseObligations(t *testing.T) {
 	}
 }
 
-func TestAffirmAuthorization(t *testing.T) {
+func TestAffirmAuthorizationOpa(t *testing.T) {
+	testMap := []struct {
+		name        string
+		application string
+		fullMethod  string
+		expectErr   bool
+	}{
+		{
+			name:        "permitted",
+			application: "automobile",
+			fullMethod:  "/service.Vehicle/StompGasPedal",
+			expectErr:   false,
+		},
+		{
+			name:        "denied, incorrect application",
+			application: "train",
+			fullMethod:  "/service.Vehicle/StompGasPedal",
+			expectErr:   true,
+		},
+		{
+			name:        "denied, incorrect endpoint",
+			application: "automobile",
+			fullMethod:  "/service.Vehicle/SteerLeft",
+			expectErr:   true,
+		},
+	}
+
+	stdLoggr := logrus.StandardLogger()
+	ctx, cancel := context.WithCancel(context.Background())
+	ctx = context.WithValue(ctx, utils_test.TestingTContextKey, t)
+	ctx = ctxlogrus.ToContext(ctx, logrus.NewEntry(stdLoggr))
+
+	done := make(chan struct{})
+	clienter := utils_test.StartOpa(ctx, t, done)
+	cli, ok := clienter.(*opa_client.Client)
+	if !ok {
+		t.Fatal("Unable to convert interface to (*Client)")
+		return
+	}
+
+	// Errors above here will leak containers
+	defer func() {
+		cancel()
+		// Wait for container to be shutdown
+		<-done
+	}()
+
+	policyRego, err := ioutil.ReadFile("testdata/mock_system_main.rego")
+	if err != nil {
+		t.Fatalf("ReadFile fatal err: %#v", err)
+		return
+	}
+
+	var resp interface{}
+	err = cli.UploadRegoPolicy(ctx, "mock_system_main_policyid", policyRego, resp)
+	if err != nil {
+		t.Fatalf("OpaUploadPolicy fatal err: %#v", err)
+		return
+	}
+
+	// DecisionInputHandler with explicitly set decision document
+	var decInputr MockDecisionInputr
+	decInputr.DecisionInput.DecisionDocument = "v1/data/system/main"
+
+	for nth, tm := range testMap {
+		// Test without explicitly set decision document
+		authzr := NewDefaultAuthorizer(tm.application,
+			WithOpaClienter(cli),
+			WithClaimsVerifier(NullClaimsVerifier),
+		)
+
+		_, actualErr := authzr.AffirmAuthorization(ctx, tm.fullMethod, nil)
+		if !tm.expectErr && actualErr != nil {
+			t.Errorf("%d: %s: AffirmAuthorization(explicit) FAIL: unexpected DENY, err=%#v", nth, tm.name, err)
+		} else if tm.expectErr && actualErr == nil {
+			t.Errorf("%d: %s: AffirmAuthorization(explicit) FAIL: unexpected PERMIT", nth, tm.name)
+		}
+
+		// Test with explicitly set decision document
+		authzr = NewDefaultAuthorizer(tm.application,
+			WithOpaClienter(cli),
+			WithDecisionInputHandler(&decInputr),
+			WithClaimsVerifier(NullClaimsVerifier),
+		)
+
+		_, actualErr = authzr.AffirmAuthorization(ctx, tm.fullMethod, nil)
+		if !tm.expectErr && actualErr != nil {
+			t.Errorf("%d: %s: AffirmAuthorization(explicit) FAIL: unexpected DENY, err=%#v", nth, tm.name, err)
+		} else if tm.expectErr && actualErr == nil {
+			t.Errorf("%d: %s: AffirmAuthorization(explicit) FAIL: unexpected PERMIT", nth, tm.name)
+		}
+	}
+}
+
+func TestAffirmAuthorizationMockOpaEvaluator(t *testing.T) {
 	ErrBoom := errors.New("boom")
 
 	testMap := []struct {
@@ -157,7 +293,7 @@ func TestAffirmAuthorization(t *testing.T) {
 	for nth, tm := range testMap {
 		auther := NewDefaultAuthorizer("app",
 			WithOpaEvaluator(tm.opaEvaltor),
-			WithClaimsVerifier(utils_test.NullClaimsVerifier),
+			WithClaimsVerifier(NullClaimsVerifier),
 		)
 
 		resultCtx, resultErr := auther.AffirmAuthorization(ctx, "FakeMethod", nil)
@@ -221,16 +357,18 @@ func TestDebugLogging(t *testing.T) {
 	}
 
 	loggertesthook := logrustesthook.NewGlobal()
+	stdLoggr := logrus.StandardLogger()
 	ctx := context.WithValue(context.Background(), utils_test.TestingTContextKey, t)
-	ctx = ctxlogrus.ToContext(ctx, logrus.NewEntry(logrus.StandardLogger()))
+	ctx = ctxlogrus.ToContext(ctx, logrus.NewEntry(stdLoggr))
 
 	for nth, tm := range testMap {
 		mockOpaClienter := MockOpaClienter{
+			Loggr:        stdLoggr,
 			RegoRespJSON: tm.regoRespJSON,
 		}
 		auther := NewDefaultAuthorizer("app",
 			WithOpaClienter(&mockOpaClienter),
-			WithClaimsVerifier(utils_test.NullClaimsVerifier),
+			WithClaimsVerifier(NullClaimsVerifier),
 		)
 		loggertesthook.Reset()
 
@@ -284,7 +422,8 @@ func TestDebugLogging(t *testing.T) {
 	}
 }
 
-type MockOpaClienter struct{
+type MockOpaClienter struct {
+	Loggr        *logrus.Logger
 	RegoRespJSON string
 }
 
@@ -300,11 +439,28 @@ func (m MockOpaClienter) Health() error {
 	return nil
 }
 
-func (m MockOpaClienter) Query(ctx context.Context, data interface{}, resp interface{}) error {
-	return m.CustomQuery(ctx, "", data, resp)
+func (m MockOpaClienter) Query(ctx context.Context, reqData, resp interface{}) error {
+	return m.CustomQuery(ctx, "", reqData, resp)
 }
 
-func (m MockOpaClienter) CustomQuery(ctx context.Context, document string, data interface{}, resp interface{}) error {
-	return json.Unmarshal([]byte(m.RegoRespJSON), resp)
+func (m MockOpaClienter) CustomQueryStream(ctx context.Context, document string, postReqBody []byte, respRdrFn opa_client.StreamReaderFn) error {
+	return nil
 }
 
+func (m MockOpaClienter) CustomQueryBytes(ctx context.Context, document string, reqData interface{}) ([]byte, error) {
+	return []byte(m.RegoRespJSON), nil
+}
+
+func (m MockOpaClienter) CustomQuery(ctx context.Context, document string, reqData, resp interface{}) error {
+	err := json.Unmarshal([]byte(m.RegoRespJSON), resp)
+	m.Loggr.Debugf("CustomQuery: resp=%#v", resp)
+	return err
+}
+
+type MockDecisionInputr struct {
+	DecisionInput
+}
+
+func (d MockDecisionInputr) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*DecisionInput, error) {
+	return &d.DecisionInput, nil
+}

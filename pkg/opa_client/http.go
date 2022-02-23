@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"syscall"
@@ -37,9 +38,11 @@ type Client struct {
 // implement at your own discretion
 type Clienter interface {
 	Address() string
-	CustomQuery(ctx context.Context, document string, data interface{}, resp interface{}) error
+	CustomQueryStream(ctx context.Context, document string, postReqBody []byte, respRdrFn StreamReaderFn) error
+	CustomQueryBytes(ctx context.Context, document string, reqData interface{}) ([]byte, error)
+	CustomQuery(ctx context.Context, document string, reqData, resp interface{}) error
 	Health() error
-	Query(ctx context.Context, data interface{}, resp interface{}) error
+	Query(ctx context.Context, reqData, resp interface{}) error
 }
 
 type Option func(c *Client)
@@ -99,25 +102,23 @@ func (c *Client) Health() error {
 	return err
 }
 
-// Query requests evaluation of data against the default document: /data/system/main
+// Query requests evaluation of reqData against the default document: /data/system/main
 // See CustomQuery
-func (c *Client) Query(ctx context.Context, data, resp interface{}) error {
-	return c.CustomQuery(ctx, "", data, resp)
+func (c *Client) Query(ctx context.Context, reqData, resp interface{}) error {
+	return c.CustomQuery(ctx, "", reqData, resp)
 }
 
-// CustomQuery requests evaluation at a document of the caller's choice
+// StreamReaderFn defines fn that accepts io.Reader parameter
+type StreamReaderFn func(io.Reader) error
+
+// CustomQueryStream requests evaluation at a document of the caller's choice
+// StreamReaderFn is supplied to directly read/parse from non-error OPA response stream.
 //
 // https://www.openpolicyagent.org/docs/latest/rest-api/#query-api
-func (c *Client) CustomQuery(ctx context.Context, document string, data, resp interface{}) error {
-
+func (c *Client) CustomQueryStream(ctx context.Context, document string, postReqBody []byte, respRdrFn StreamReaderFn) error {
 	ref := fmt.Sprintf("%s/%s", c.Address(), document)
 
-	bs, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequest("POST", ref, bytes.NewBuffer(bs))
+	req, err := http.NewRequest("POST", ref, bytes.NewBuffer(postReqBody))
 	if err != nil {
 		return err
 	}
@@ -139,19 +140,22 @@ func (c *Client) CustomQuery(ctx context.Context, document string, data, resp in
 		return err
 	}
 	defer postResp.Body.Close()
-	bs, _ = ioutil.ReadAll(postResp.Body)
-
-	buf := bytes.NewBuffer(bs)
-	copy := buf.String()
-	dec := json.NewDecoder(buf)
 
 	// Successful code, decode as document
 	if postResp.StatusCode >= 200 && postResp.StatusCode < 400 {
-		if resp == nil {
-			return nil
+		if respRdrFn != nil {
+			err = respRdrFn(postResp.Body)
 		}
-		return dec.Decode(resp)
+		return err
 	}
+
+	bs, err := ioutil.ReadAll(postResp.Body)
+	if err != nil {
+		return err
+	}
+	buf := bytes.NewBuffer(bs)
+	copy := buf.String()
+	dec := json.NewDecoder(buf)
 
 	// unsuccessful code, attempt to decode as types.ErrorV1
 	var opaErrV1 types.ErrorV1
@@ -160,6 +164,47 @@ func (c *Client) CustomQuery(ctx context.Context, document string, data, resp in
 	}
 
 	return &opaErrV1
+}
+
+// CustomQueryBytes requests evaluation at a document of the caller's choice
+// If non-error OPA response, returns OPA response bytes.
+func (c *Client) CustomQueryBytes(ctx context.Context, document string, reqData interface{}) ([]byte, error) {
+	postReqBody, err := json.Marshal(reqData)
+	if err != nil {
+		return nil, err
+	}
+
+	var bs []byte
+	respRdrFn := func(rdr io.Reader) error {
+		allBytes, err := ioutil.ReadAll(rdr)
+		if err == nil {
+			bs = allBytes
+		}
+		return err
+	}
+
+	err = c.CustomQueryStream(ctx, document, postReqBody, respRdrFn)
+	if err != nil {
+		return nil, err
+	}
+
+	return bs, nil
+}
+
+// CustomQuery requests evaluation at a document of the caller's choice
+// A non-error OPA response is decoded into resp.
+func (c *Client) CustomQuery(ctx context.Context, document string, reqData, resp interface{}) error {
+	postReqBody, err := json.Marshal(reqData)
+	if err != nil {
+		return err
+	}
+
+	respRdrFn := func(rdr io.Reader) error {
+		dec := json.NewDecoder(rdr)
+		return dec.Decode(resp)
+	}
+
+	return c.CustomQueryStream(ctx, document, postReqBody, respRdrFn)
 }
 
 // https://github.com/golang/go/blob/master/src/net/http/transport.go#L498

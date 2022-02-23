@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
 	"github.com/infobloxopen/atlas-authz-middleware/utils_test"
 )
 
@@ -62,7 +63,7 @@ func Test_WithEntitledServices_payload(t *testing.T) {
 
 		auther := NewDefaultAuthorizer("app",
 			WithOpaClienter(&mockOpaClienter),
-			WithClaimsVerifier(utils_test.NullClaimsVerifier),
+			WithClaimsVerifier(NullClaimsVerifier),
 		)
 
 		inputEntitledServices, ok := tstc.inputEntitledServices.([]string)
@@ -71,7 +72,7 @@ func Test_WithEntitledServices_payload(t *testing.T) {
 				idx, tstc.name, inputEntitledServices)
 			auther = NewDefaultAuthorizer("app",
 				WithOpaClienter(&mockOpaClienter),
-				WithClaimsVerifier(utils_test.NullClaimsVerifier),
+				WithClaimsVerifier(NullClaimsVerifier),
 				WithEntitledServices(inputEntitledServices...),
 			)
 		}
@@ -98,15 +99,23 @@ func (m optionsMockOpaClienter) Health() error {
 	return nil
 }
 
-func (m optionsMockOpaClienter) Query(ctx context.Context, data interface{}, resp interface{}) error {
-	return m.CustomQuery(ctx, "", data, resp)
+func (m optionsMockOpaClienter) Query(ctx context.Context, reqData, resp interface{}) error {
+	return m.CustomQuery(ctx, "", reqData, resp)
 }
 
-func (m optionsMockOpaClienter) CustomQuery(ctx context.Context, document string, data interface{}, resp interface{}) error {
+func (m optionsMockOpaClienter) CustomQueryStream(ctx context.Context, document string, postReqBody []byte, respRdrFn opa_client.StreamReaderFn) error {
+	return nil
+}
+
+func (m optionsMockOpaClienter) CustomQueryBytes(ctx context.Context, document string, reqData interface{}) ([]byte, error) {
+	return []byte(`{"allow": true}`), nil
+}
+
+func (m optionsMockOpaClienter) CustomQuery(ctx context.Context, document string, reqData, resp interface{}) error {
 	t, _ := ctx.Value(utils_test.TestingTContextKey).(*testing.T)
 	tcIdx, _ := ctx.Value(utils_test.TestCaseIndexContextKey).(int)
 	tcName, _ := ctx.Value(utils_test.TestCaseNameContextKey).(string)
-	payload, _ := data.(Payload)
+	payload, _ := reqData.(Payload)
 	if m.VerifyEntitledServices && !reflect.DeepEqual(payload.EntitledServices, m.ExpectEntitledServices) {
 		t.Errorf("tst#%d: FAIL: name=%s; not equal: payload.EntitledServices=%#v; m.ExpectEntitledServices=%#v",
 			tcIdx, tcName, payload.EntitledServices, m.ExpectEntitledServices)

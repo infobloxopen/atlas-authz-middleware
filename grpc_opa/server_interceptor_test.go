@@ -35,7 +35,7 @@ func (t *connFailTransport) RoundTrip(httpReq *http.Request) (httpResp *http.Res
 }
 
 func init() {
-	logrus.SetLevel(logrus.DebugLevel)
+	logrus.SetLevel(logrus.TraceLevel)
 }
 
 func TestConnFailure(t *testing.T) {
@@ -44,7 +44,7 @@ func TestConnFailure(t *testing.T) {
 	}
 	interceptor := UnaryServerInterceptor("app",
 		WithHTTPClient(&http.Client{Transport: &connFailTransport{},}),
-		WithClaimsVerifier(utils_test.NullClaimsVerifier),
+		WithClaimsVerifier(NullClaimsVerifier),
 	)
 
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(3*time.Second))
@@ -68,7 +68,7 @@ func TestMockOPA(t *testing.T) {
 	mock := new(mockAuthorizer)
 	interceptor := UnaryServerInterceptor("app",
 		WithAuthorizer(mock),
-		WithClaimsVerifier(utils_test.NullClaimsVerifier),
+		WithClaimsVerifier(NullClaimsVerifier),
 	)
 
 	deadline := time.Now().Add(3 * time.Second)
@@ -118,7 +118,7 @@ func TestStreamServerInterceptor(t *testing.T) {
 	mock := new(mockAuthorizer)
 	interceptor := StreamServerInterceptor("app",
 		WithAuthorizer(mock),
-		WithClaimsVerifier(utils_test.NullClaimsVerifier),
+		WithClaimsVerifier(NullClaimsVerifier),
 	)
 
 	deadline := time.Now().Add(3 * time.Second)
@@ -236,7 +236,7 @@ func (m jsonNonMarshalableInputer) String() string {
 
 func (m *jsonNonMarshalableInputer) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*DecisionInput, error) {
 	var sealctx []interface{}
-	sealctx = append(sealctx, utils_test.NullClaimsVerifier) // NullClaimsVerifier is a non-json-marshalable fn)
+	sealctx = append(sealctx, NullClaimsVerifier) // NullClaimsVerifier is a non-json-marshalable fn)
 
 	inp, _ := defDecisionInputer.GetDecisionInput(ctx, fullMethod, grpcReq)
 	inp.SealCtx = sealctx
@@ -296,7 +296,7 @@ func TestDecisionInput(t *testing.T) {
 		interceptor := UnaryServerInterceptor("app",
 			WithAuthorizer(mockAuthzer),
 			WithDecisionInputHandler(mockInputer),
-			WithClaimsVerifier(utils_test.NullClaimsVerifier),
+			WithClaimsVerifier(NullClaimsVerifier),
 		)
 
 		headers := map[string]string{

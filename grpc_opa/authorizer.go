@@ -17,7 +17,7 @@ import (
 
 	"github.com/infobloxopen/atlas-app-toolkit/requestid"
 	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
-	athena_claims "github.com/infobloxopen/atlas-claims"
+	atlas_claims "github.com/infobloxopen/atlas-claims"
 )
 
 // ABACKey is a context.Context key type
@@ -25,6 +25,9 @@ type ABACKey string
 type ObligationKey string
 
 const (
+	// DefaultValidatePath is default OPA path to perform authz validation
+	DefaultValidatePath = "v1/data/authz/rbac/validate_v1"
+
 	REDACTED = "redacted"
 	TypeKey  = ABACKey("ABACType")
 	VerbKey  = ABACKey("ABACVerb")
@@ -120,6 +123,7 @@ func NewDefaultAuthorizer(application string, opts ...Option) *DefaultAuthorizer
 		address:              opa_client.DefaultAddress,
 		decisionInputHandler: defDecisionInputer,
 		claimsVerifier:       UnverifiedClaimFromBearers,
+		acctEntitlementsApi:  DefaultAcctEntitlementsApiPath,
 	}
 	for _, opt := range opts {
 		opt(cfg)
@@ -139,6 +143,7 @@ func NewDefaultAuthorizer(application string, opts ...Option) *DefaultAuthorizer
 		decisionInputHandler: cfg.decisionInputHandler,
 		claimsVerifier:       cfg.claimsVerifier,
 		entitledServices:     cfg.entitledServices,
+		acctEntitlementsApi:  cfg.acctEntitlementsApi,
 	}
 	return &a
 }
@@ -150,6 +155,7 @@ type DefaultAuthorizer struct {
 	decisionInputHandler DecisionInputHandler
 	claimsVerifier       ClaimsVerifier
 	entitledServices     []string
+	acctEntitlementsApi  string
 }
 
 type Config struct {
@@ -163,12 +169,13 @@ type Config struct {
 	decisionInputHandler DecisionInputHandler
 	claimsVerifier       ClaimsVerifier
 	entitledServices     []string
+	acctEntitlementsApi  string
 }
 
 type ClaimsVerifier func([]string, []string) (string, []error)
 
 // 	FullMethod is the full RPC method string, i.e., /package.service/method.
-// e.g. fullmethod:  /service.TagService/ListRetiredTags PARGs endpoint: TagService/ListRetiredTags
+// e.g. fullmethod:  /service.TagService/ListRetiredTags PARGs endpoint: TagService.ListRetiredTags
 func parseEndpoint(fullMethod string) string {
 	byPackage := strings.Split(fullMethod, ".")
 	endpoint := byPackage[len(byPackage)-1]
@@ -186,7 +193,10 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 		"application": a.application,
 	})
 
-	bearer, newBearer := athena_claims.AuthBearersFromCtx(ctx)
+	// This fetches auth data from auth headers in metadata from context:
+	// bearer = data from "authorization bearer" metadata header
+	// newBearer = data from "set-authorization bearer" metadata header
+	bearer, newBearer := atlas_claims.AuthBearersFromCtx(ctx)
 
 	claimsVerifier := a.claimsVerifier
 	if claimsVerifier == nil {
@@ -207,7 +217,7 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 		Endpoint:    parseEndpoint(fullMethod),
 		FullMethod:  fullMethod,
 		Application: a.application,
-		// FIXME: implement athena_claims.AuthBearersFromCtx
+		// FIXME: implement atlas_claims.AuthBearersFromCtx
 		JWT:              redactJWT(rawJWT),
 		RequestID:        reqID,
 		EntitledServices: a.entitledServices,
@@ -248,8 +258,19 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 	}
 	// FIXME: perhaps only inject these fields if this is the default handler
 
+	// If DecisionDocument is empty, the default OPA-configured decision document is queried.
+	// In this case, the input payload MUST NOT be encapsulated inside "input".
+	// Otherwise for any other non-empty DecisionDocument, even if it's the same as the default
+	// OPA-configured decision document, the input payload MUST be encapsulated inside "input".
+	// (See comments in testdata/mock_system_main.rego)
+	var opaInput interface{}
+	opaInput = opaReq
+	if len(decisionInput.DecisionDocument) > 0 {
+		opaInput = OPARequest{Input: &opaReq}
+	}
+
 	var opaResp OPAResponse
-	err = opaEvaluator(ctxlogrus.ToContext(ctx, logger), decisionInput.DecisionDocument, opaReq, &opaResp)
+	err = opaEvaluator(ctxlogrus.ToContext(ctx, logger), decisionInput.DecisionDocument, opaInput, &opaResp)
 	// Metrics, logging, tracing handler
 	defer func() {
 		// opencensus Status is based on gRPC status codes
@@ -269,10 +290,11 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 		return false, ctx, err
 	}
 
-	// When we query OPA for the default decision document, it returns non-nested JSON document:
+	// When we POST query OPA without url path, it returns results NOT encapsulated inside "result":
 	//   {"allow": true, ...}
-	// When we query OPA for non-default decision document, it returns nested JSON document:
+	// When we POST query OPA with explicit decision document, it returns results encapsulated inside "result":
 	//   {"result":{"allow": true, ...}}
+	// (See comments in testdata/mock_system_main.rego)
 	// If the JSON result document is nested within "result" wrapper map,
 	// we extract the nested JSON document and throw away the "result" wrapper map.
 	nestedResultVal, resultIsNested := opaResp["result"]
@@ -325,9 +347,9 @@ func (a *DefaultAuthorizer) OpaQuery(ctx context.Context, decisionDocument strin
 		grpcErr := opa_client.GRPCError(err)
 		logger.WithError(grpcErr).Error("opa_policy_engine_request_error")
 		return opaqueError(grpcErr)
-	} else {
-		logger.WithField("opaResp", opaResp).Debug("opa_policy_engine_response")
 	}
+
+	logger.WithField("opaResp", opaResp).Debug("opa_policy_engine_response")
 	return err
 }
 
@@ -389,13 +411,11 @@ type Payload struct {
 
 // OPARequest is used to query OPA
 type OPARequest struct {
-	// Document on OPA "" calls default document
-	Document string
-	// OPA expects this field to be called input
-	Input *Payload `json:"input"`
+	// OPA expects field called "input" to contain input payload
+	Input interface{} `json:"input"`
 }
 
-// OPAResponse unmarshals the response from OPA
+// OPAResponse unmarshals the response from OPA into a generic untyped structure
 type OPAResponse map[string]interface{}
 
 // Allow determine if policy is allowed
