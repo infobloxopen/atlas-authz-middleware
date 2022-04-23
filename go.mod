@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/infobloxopen/atlas-app-toolkit v1.1.2
-	github.com/infobloxopen/atlas-claims v0.0.0-20201217033352-c116bfcdadb1
+	github.com/infobloxopen/atlas-claims v0.0.0-20220422172255-90d163fa32b1
 	github.com/infobloxopen/seal v0.2.3
 	github.com/open-policy-agent/opa v0.37.2
 	github.com/sirupsen/logrus v1.8.1
@@ -17,13 +17,13 @@ require (
 require (
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
 	github.com/bytecodealliance/wasmtime-go v0.34.0 // indirect
-	github.com/dgrijalva/jwt-go v3.2.1-0.20200107013213-dc14462fd587+incompatible // indirect
 	github.com/getkin/kin-openapi v0.89.0 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-ini/ini v1.66.4 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/swag v0.21.1 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
+	github.com/golang-jwt/jwt/v4 v4.4.1 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/uuid v1.3.0 // indirect
