@@ -19,7 +19,8 @@ type autorizer struct {
 }
 
 func NewAutorizer(config *Config) (*autorizer, error) {
-	opa, err := startOPA()
+	opa, err := startOPA(config)
+
 	if err != nil {
 		logrus.Fatal(err)
 	}
@@ -32,11 +33,12 @@ func NewAutorizer(config *Config) (*autorizer, error) {
 	// defer opa.Stop(ctx)
 }
 
-// TODO
+// Authorize ...
 func (a *autorizer) Authorize(ctx context.Context, input map[string]interface{}) (interface{}, error) {
 	return a.engine.Decision(ctx, sdk.DecisionOptions{
 		Now:   time.Now(),
-		Path:  "/todo",
+		Path:  a.config.DecisionPath,
 		Input: input,
 	})
 }
+

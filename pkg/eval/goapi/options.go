@@ -20,3 +20,11 @@ func ForApplicaton(app string) Option {
 		c.Applicaton = app
 	}
 }
+
+func WithDecisionPath(path string) Option {
+	return func(c *OptHub) {
+		c.DecisionPath = path
+	}
+}
+
+

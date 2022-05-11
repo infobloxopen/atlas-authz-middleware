@@ -10,7 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func startOPA() (*sdk.OPA, error) {
+func startOPA(config *Config) (*sdk.OPA, error) {
 	// TODO configurable via options
 	opaLogLevel := logging.Debug
 	opaLogger := logging.New()
@@ -18,12 +18,11 @@ func startOPA() (*sdk.OPA, error) {
 
 	ctx := context.Background()
 
-	// TODO configuration
-	// https://www.openpolicyagent.org/docs/latest/configuration/
-	config, err := os.ReadFile("TODO")
+
+	cfg, err := os.ReadFile(config.OPAConfigFile.Name())
 	if err != nil {
 		logrus.Fatal(err)
 	}
 
-	return sdk.New(ctx, sdk.Options{Config: bytes.NewReader(config), Logger: opaLogger})
+	return sdk.New(ctx, sdk.Options{Config: bytes.NewReader(cfg), Logger: opaLogger})
 }
