@@ -10,11 +10,23 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const (
+	// DefaultAcctEntitlementsApiPath is default OPA path to fetch acct entitlements
+	DefaultAcctEntitlementsApiPath = "v1/data/authz/rbac/acct_entitlements_api"
+	DefaultDecisionPath = "/authz/rbac/validate_v1"
+)
+
 type Config struct {
 	Applicaton string
 	// DecisionPath is a path of a rule: data.<package-path>.<rule-name>
 	DecisionPath  string
 	OPAConfigFile *os.File
+
+	decisionInputHandler DecisionInputHandler
+	claimsVerifier       ClaimsVerifier
+	entitledServices     []string
+	acctEntitlementsApi  string
+
 }
 
 // Service defines a service
@@ -77,8 +89,8 @@ type OPAConfig struct {
 func createOPAConfigFile(addr string, resource string, token string) *os.File {
 	config := OPAConfig{
 		Services: map[string]Service{
-			"test": {
-				Name: "test",
+			"authz": {
+				Name: "authz",
 				URL:  addr,
 				//Credentials: map[string]interface{}{
 				//	"bearer": map[string]string{
@@ -88,8 +100,8 @@ func createOPAConfigFile(addr string, resource string, token string) *os.File {
 			},
 		},
 		Bundles: map[string]Bundle{
-			"test": {
-				Service:  "test",
+			"authz": {
+				Service:  "authz",
 				Resource: resource,
 				//Persist:  false,
 				//Polling:  nil,

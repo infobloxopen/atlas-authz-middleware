@@ -27,4 +27,32 @@ func WithDecisionPath(path string) Option {
 	}
 }
 
+// WithDecisionInputHandler supplies optional DecisionInputHandler
+// for DefaultAuthorizer to obtain additional input for OPA
+// ABAC decision processing.
+func WithDecisionInputHandler(decisionHandler DecisionInputHandler) Option {
+	return func(c *OptHub) {
+		c.decisionInputHandler = decisionHandler
+	}
+}
 
+// WithClaimsVerifier overrides default ClaimsVerifier
+func WithClaimsVerifier(claimsVerifier ClaimsVerifier) Option {
+	return func(c *OptHub) {
+		c.claimsVerifier = claimsVerifier
+	}
+}
+
+// WithEntitledServices overrides default EntitledServices
+func WithEntitledServices(entitledServices ...string) Option {
+	return func(c *OptHub) {
+		c.entitledServices = entitledServices
+	}
+}
+
+// WithAcctEntitlementsApiPath overrides default AcctEntitlementsApiPath
+func WithAcctEntitlementsApiPath(acctEntitlementsApi string) Option {
+	return func(c *OptHub) {
+		c.acctEntitlementsApi = acctEntitlementsApi
+	}
+}
