@@ -1,4 +1,4 @@
-package goapi
+package wasm
 
 import (
 	"context"
@@ -27,6 +27,7 @@ func UnaryServerInterceptor(opts ...Option) grpc.UnaryServerInterceptor {
 	opthub.claimsVerifier = utils.UnverifiedClaimFromBearers
 	opthub.entitledServices = nil
 	opthub.acctEntitlementsApi = DefaultAcctEntitlementsApiPath
+	opthub.decisionPath = DefaultDecisionPath
 
 	for _, opt := range opts {
 		opt(opthub)
@@ -92,7 +93,7 @@ func UnaryServerInterceptor(opts ...Option) grpc.UnaryServerInterceptor {
 
 			// authorize
 			logger.WithField("authorizer", a).Debugf("input: %+v", input)
-			result, err = a.Authorize(ctx, opthub.Config, input)
+			result, err = a.Authorize(ctx, input)
 			if err != nil {
 				logger.WithError(err).WithField("authorizer", a).Error("unable_authorize")
 				return nil, ErrUnknown // TODO

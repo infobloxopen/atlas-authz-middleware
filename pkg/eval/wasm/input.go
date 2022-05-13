@@ -1,4 +1,4 @@
-package goapi
+package wasm
 
 import (
 	"context"
@@ -83,9 +83,9 @@ func parseEndpoint(fullMethod string) string {
 	return strings.Replace(endpoint, "/", ".", -1)
 }
 
-func composeInput(ctx context.Context, cfg *Config, method string, grpcReq interface{}) (*InputPayload, error) {
+func composeInput(ctx context.Context, cfg *Config, fullMethod string, grpcReq interface{}) (*InputPayload, error) {
 	log := ctxlogrus.Extract(ctx).WithFields(logrus.Fields{
-		"application": cfg.Applicaton,
+		"application": cfg.applicaton,
 	})
 
 	// This fetches auth data from auth headers in metadata from context:
@@ -103,18 +103,18 @@ func composeInput(ctx context.Context, cfg *Config, method string, grpcReq inter
 		reqID = "no-request-uuid"
 	}
 
-	decisionInput, err := cfg.decisionInputHandler.GetDecisionInput(ctx, method, grpcReq)
+	decisionInput, err := cfg.decisionInputHandler.GetDecisionInput(ctx, fullMethod, grpcReq)
 	if decisionInput == nil || err != nil {
 		log.WithFields(logrus.Fields{
-			"fullMethod": method,
+			"fullMethod": fullMethod,
 		}).WithError(err).Error("get_decision_input")
 		return nil, ErrInvalidArg
 	}
 
 	payload := InputPayload{
-		Endpoint:         parseEndpoint(method),
-		FullMethod:       method,
-		Application:      cfg.Applicaton,
+		Endpoint:         parseEndpoint(fullMethod),
+		FullMethod:       fullMethod,
+		Application:      cfg.applicaton,
 		JWT:              utils.RedactJWT(rawJWT), // FIXME: implement atlas_claims.AuthBearersFromCtx
 		RequestID:        reqID,
 		EntitledServices: cfg.entitledServices,

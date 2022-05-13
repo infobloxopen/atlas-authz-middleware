@@ -1,4 +1,4 @@
-package goapi
+package wasm
 
 type OptHub struct {
 	*Config
@@ -17,13 +17,13 @@ func WithAuthorizer(authers ...Authorizer) Option {
 // ForApplicaton ...
 func ForApplicaton(app string) Option {
 	return func(c *OptHub) {
-		c.Applicaton = app
+		c.applicaton = app
 	}
 }
 
 func WithDecisionPath(path string) Option {
 	return func(c *OptHub) {
-		c.DecisionPath = path
+		c.decisionPath = path
 	}
 }
 

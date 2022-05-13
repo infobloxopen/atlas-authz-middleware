@@ -1,18 +1,26 @@
-package goapi
+package wasm
 
 import (
 	"context"
-	"encoding/json"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"time"
+
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/open-policy-agent/opa/sdk"
 	"github.com/sirupsen/logrus"
 )
 
+var (
+	ErrForbidden  = status.Errorf(codes.PermissionDenied, "Request forbidden: not authorized")
+	ErrUnknown    = status.Errorf(codes.Unknown, "Unknown error")
+	ErrInvalidArg = status.Errorf(codes.InvalidArgument, "Invalid argument")
+)
+
 // Authorizer interface ...
 type Authorizer interface {
-	Authorize(ctx context.Context, cfg *Config, input *InputPayload) (interface{}, error)
+	Authorize(ctx context.Context, input *InputPayload) (interface{}, error)
 }
 
 type autorizer struct {
@@ -36,18 +44,20 @@ func NewAutorizer(config *Config) (*autorizer, error) {
 }
 
 // Authorize ...
-func (a *autorizer) Authorize(ctx context.Context, cfg *Config, input *InputPayload) (interface{}, error) {
+func (a *autorizer) Authorize(ctx context.Context, input *InputPayload) (interface{}, error) {
 	log := ctxlogrus.Extract(ctx).WithFields(logrus.Fields{
-		"application": cfg.Applicaton,
+		"application": a.config.applicaton,
 	})
 
-	// InputWrap ...
+	document := input.DecisionInput.DecisionDocument
+	log.Debugf("input_decision_document: %s", document)
+
+	// Wrap input ...
 	type Wrap struct {
 		// OPA expects field called "input" to contain input payload
 		Input interface{} `json:"input"`
 	}
 
-	document := input.DecisionInput.DecisionDocument
 	var in interface{}
 	// If DecisionDocument is empty, the default OPA-configured decision document is queried.
 	// In this case, the input payload MUST NOT be encapsulated inside "input".
@@ -59,19 +69,12 @@ func (a *autorizer) Authorize(ctx context.Context, cfg *Config, input *InputPayl
 	} else {
 		in = Wrap{Input: input}
 	}
-
-	js, err := json.Marshal(in)
-	if err != nil {
-		log.WithFields(logrus.Fields{
-			"request_opa_payload": in,
-		}).WithError(err).Errorf("JSON_marshal_error: %v", err)
-		return nil, err
-	}
+	log.Debugf("OPA_input: %+v", in)
 
 	res, err := a.engine.Decision(ctx, sdk.DecisionOptions{
 		Now:   time.Now(),
-		Path:  a.config.DecisionPath,
-		Input: js,
+		Path:  a.config.decisionPath,
+		Input: in,
 	})
 	if err != nil {
 		log.WithFields(logrus.Fields{
