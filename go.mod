@@ -3,6 +3,7 @@ module github.com/infobloxopen/atlas-authz-middleware
 go 1.17
 
 require (
+	github.com/golang-jwt/jwt/v4 v4.4.1
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/infobloxopen/atlas-app-toolkit v1.1.2
 	github.com/infobloxopen/atlas-claims v1.0.0
@@ -36,7 +37,6 @@ require (
 	github.com/go-openapi/swag v0.21.1 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang-jwt/jwt/v4 v4.4.1 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/uuid v1.3.0 // indirect
