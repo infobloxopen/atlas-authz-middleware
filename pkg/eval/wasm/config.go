@@ -40,7 +40,14 @@ type Bundle struct {
 	Polling  *Polling `json:"polling,omitempty"`
 	Signing  *Signing `json:"signing,omitempty"`
 }
+
 type Polling struct {
+	MinDelaySeconds    int `json:"min_delay_seconds,omitempty"`
+	MaxDelaySeconds    int `json:"max_delay_seconds,omitempty"`
+	LongPollTimeoutSec int `json:"long_polling_timeout_seconds,omitempty"`
+}
+
+type Reporting struct {
 	MinDelaySeconds int `json:"min_delay_seconds,omitempty"`
 	MaxDelaySeconds int `json:"max_delay_seconds,omitempty"`
 }
@@ -50,15 +57,19 @@ type Signing struct {
 }
 
 type DecisionLogs struct {
-	Console bool `json:"console,omitempty"`
+	Service   string     `json:"service,omitempty"`
+	Console   bool       `json:"console,omitempty"`
+	Reporting *Reporting `json:"reporting,omitempty"`
 }
 
 // OPAConfigObject defines the top level OPA config to go to json
 type OPAConfigObject struct {
-	Services        map[string]Service `json:"services,omitempty"`
-	Bundles         map[string]Bundle  `json:"bundles,omitempty"`
-	DecisionLogs    DecisionLogs       `json:"decision_logs,omitempty"`
-	DefaultDecision string             `json:"default_decision,omitempty"`
+	Services             map[string]Service `json:"services,omitempty"`
+	Labels               map[string]string  `json:"labels,omitempty"`
+	Bundles              map[string]Bundle  `json:"bundles,omitempty"`
+	DecisionLogs         *DecisionLogs      `json:"decision_logs,omitempty"`
+	DefaultDecision      string             `json:"default_decision,omitempty"`
+	PersistenceDirectory string             `json:"persistence_directory,omitempty"`
 }
 
 // OPAConfigValues ...
@@ -67,6 +78,9 @@ type OPAConfigValues struct {
 	resource            string
 	defaultDecisionPath string
 	token               string
+	persistBundle       bool
+	// persistDir is a directory to store OPA state, for example bundles
+	persistDir string
 }
 
 // createOPAConfigFile ...
@@ -78,28 +92,43 @@ func createOPAConfigFile(val OPAConfigValues, log *logrus.Logger) *os.File {
 			"authz": {
 				Name: "authz",
 				URL:  val.address,
+				//Credentials: map[string]interface{}{
+				//	"bearer": map[string]string{
+				//		"token": val.token,
+				//	},
+				//},
 			},
 		},
 		Bundles: map[string]Bundle{
 			"authz": {
 				Service:  "authz",
 				Resource: val.resource,
-				//Persist:  false,
-				//Polling:  nil,
-				//Signing:  nil,
+				Persist:  val.persistBundle,
+				Polling: &Polling{
+					MinDelaySeconds:    60,
+					MaxDelaySeconds:    120,
+					LongPollTimeoutSec: 10,
+				},
+				Signing: nil,
 			},
 		},
-		DecisionLogs: DecisionLogs{
+		DecisionLogs: &DecisionLogs{
+			Service: "authz",
 			Console: true,
+			Reporting: &Reporting{
+				MinDelaySeconds: 300,
+				MaxDelaySeconds: 600,
+			},
 		},
-		DefaultDecision: val.defaultDecisionPath,
+		DefaultDecision:      val.defaultDecisionPath,
+		PersistenceDirectory: val.persistDir,
 	}
 
 	asJSON, err := json.Marshal(config)
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Infof("OPA config JSON: %s", asJSON)
+	log.Infof("OPA config JSON: \n%s", asJSON)
 
 	intermediary := map[string]interface{}{}
 	if err := yaml.Unmarshal(asJSON, &intermediary); err != nil {
@@ -110,7 +139,7 @@ func createOPAConfigFile(val OPAConfigValues, log *logrus.Logger) *os.File {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Infof("OPA config YAML: %s", asYAML)
+	log.Infof("OPA config YAML: \n%s", asYAML)
 
 	file, err := ioutil.TempFile("", "*.yaml")
 	if err != nil {

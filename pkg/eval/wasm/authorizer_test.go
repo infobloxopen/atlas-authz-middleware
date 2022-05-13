@@ -51,9 +51,11 @@ func Test_autorizer_Authorize(t *testing.T) {
 	logger.SetLevel(logrus.DebugLevel)
 
 	opaCfg := OPAConfigValues{
-		address:             svr.URL,
+		address: svr.URL,
 		resource:            "/bundles/bundle.tar.gz",
 		defaultDecisionPath: DefaultDecisionPath,
+		persistBundle:       false,
+		persistDir:          "",
 	}
 
 	cfg := &Config{
