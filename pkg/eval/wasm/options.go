@@ -1,5 +1,7 @@
 package wasm
 
+import "github.com/sirupsen/logrus"
+
 type OptHub struct {
 	*Config
 	Authorizers []Authorizer
@@ -21,9 +23,23 @@ func ForApplicaton(app string) Option {
 	}
 }
 
+// WithDecisionPath ...
 func WithDecisionPath(path string) Option {
 	return func(c *OptHub) {
 		c.decisionPath = path
+	}
+}
+
+// WithBundleResourcePath accepts an absolute path with the leading
+// slash to a bundle file that the opa should use as data. If not
+// configured, "/bundle/bundle.tar.gz" is used as the default.
+// Polling bundles from remote HTTP server is not supported.
+func WithBundleResourcePath(path string) Option {
+	return func(c *OptHub) {
+		if path != "" {
+			path = "file://" + path
+		}
+		c.bundleResourcePath = path
 	}
 }
 
@@ -54,5 +70,25 @@ func WithEntitledServices(entitledServices ...string) Option {
 func WithAcctEntitlementsApiPath(acctEntitlementsApi string) Option {
 	return func(c *OptHub) {
 		c.acctEntitlementsApi = acctEntitlementsApi
+	}
+}
+
+// WithLogger sets the logrus logger from the calling application
+// that has one of logrus logging levels
+// (Trace, Debug, Info, Warning, Error, Fatal, Panic).
+// OPA SDK has its own set of logging levels (Debug, Info,
+// Warn, Error). OPA logger log level is also configured by
+// this option to the nearest counterpart:
+//
+// - Panic, Fatal, Error = Error
+//
+// - Warn = Warn
+//
+// - Info = Info
+//
+// - Debug, Trace = Debug
+func WithLogger(logger *logrus.Logger) Option {
+	return func(c *OptHub) {
+		c.logger = logger
 	}
 }

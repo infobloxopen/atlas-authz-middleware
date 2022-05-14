@@ -11,8 +11,19 @@ import (
 )
 
 func startOPA(config *Config) (*sdk.OPA, error) {
-	// TODO configurable via options
-	opaLogLevel := logging.Debug
+	opaLogLevel := logging.Info
+
+	switch config.logger.GetLevel() {
+	case logrus.PanicLevel, logrus.FatalLevel, logrus.ErrorLevel:
+		opaLogLevel = logging.Error
+	case logrus.WarnLevel:
+		opaLogLevel = logging.Warn
+	case logrus.InfoLevel:
+		opaLogLevel = logging.Info
+	case logrus.DebugLevel, logrus.TraceLevel:
+		opaLogLevel = logging.Debug
+	}
+
 	opaLogger := logging.New()
 	opaLogger.SetLevel(opaLogLevel)
 

@@ -13,18 +13,36 @@ const (
 	// DefaultAcctEntitlementsApiPath is default OPA path to fetch acct entitlements
 	DefaultAcctEntitlementsApiPath = "v1/data/authz/rbac/acct_entitlements_api"
 	DefaultDecisionPath            = "/authz/rbac/validate_v1"
+	DefaultBundleResourcePath      = "/bundle/bundle.tar.gz"
+	DefaultLoggingLevel            = logrus.InfoLevel
 )
 
 type Config struct {
-	applicaton string
-	// decisionPath is a path of a rule: data.<package-path>.<rule-name>
-	decisionPath string
-	// opaConfigFile configures OPA
-	opaConfigFile        *os.File
+	opaConfig
+	applicaton           string
 	decisionInputHandler DecisionInputHandler
 	claimsVerifier       ClaimsVerifier
 	entitledServices     []string
 	acctEntitlementsApi  string
+	logger               *logrus.Logger
+}
+
+// opaConfig ...
+type opaConfig struct {
+	// decisionPath is a path of a rule: data.<package-path>.<rule-name>
+	decisionPath        string
+	defaultDecisionPath string
+	// bundleResourcePath is an absolute path to a bundle file for
+	// the middleware to fetch it from. Using remote HTTP server is not supported.
+	// If the path is empty, "file:///bundle/bundle.tar.gz" is used as the default.
+	bundleResourcePath string
+	serviceURL         string
+	serviceCredToken   string
+	persistBundle      bool
+	// persistDir is a directory to store OPA state, for example bundles
+	persistDir string
+	// opaConfigFile configures OPA
+	opaConfigFile *os.File
 }
 
 type Service struct {
@@ -62,8 +80,8 @@ type DecisionLogs struct {
 	Reporting *Reporting `json:"reporting,omitempty"`
 }
 
-// OPAConfigObject defines the top level OPA config to go to json
-type OPAConfigObject struct {
+// OPAConfig defines the top level OPA config to go to json
+type OPAConfig struct {
 	Services             map[string]Service `json:"services,omitempty"`
 	Labels               map[string]string  `json:"labels,omitempty"`
 	Bundles              map[string]Bundle  `json:"bundles,omitempty"`
@@ -72,26 +90,15 @@ type OPAConfigObject struct {
 	PersistenceDirectory string             `json:"persistence_directory,omitempty"`
 }
 
-// OPAConfigValues ...
-type OPAConfigValues struct {
-	address             string
-	resource            string
-	defaultDecisionPath string
-	token               string
-	persistBundle       bool
-	// persistDir is a directory to store OPA state, for example bundles
-	persistDir string
-}
-
 // createOPAConfigFile ...
 // https://www.openpolicyagent.org/docs/latest/configuration/
 // https://github.com/michaelboulton/opa-test/tree/a3cb64f6d8dbaa633e2581e853222025d26c6014/pkg/opa
-func createOPAConfigFile(val OPAConfigValues, log *logrus.Logger) *os.File {
-	config := OPAConfigObject{
+func createOPAConfigFile(cfg *opaConfig, log *logrus.Logger) *os.File {
+	config := OPAConfig{
 		Services: map[string]Service{
 			"authz": {
 				Name: "authz",
-				URL:  val.address,
+				URL:  cfg.serviceURL,
 				//Credentials: map[string]interface{}{
 				//	"bearer": map[string]string{
 				//		"token": val.token,
@@ -102,8 +109,8 @@ func createOPAConfigFile(val OPAConfigValues, log *logrus.Logger) *os.File {
 		Bundles: map[string]Bundle{
 			"authz": {
 				Service:  "authz",
-				Resource: val.resource,
-				Persist:  val.persistBundle,
+				Resource: cfg.bundleResourcePath,
+				Persist:  cfg.persistBundle,
 				Polling: &Polling{
 					MinDelaySeconds:    60,
 					MaxDelaySeconds:    120,
@@ -120,8 +127,8 @@ func createOPAConfigFile(val OPAConfigValues, log *logrus.Logger) *os.File {
 				MaxDelaySeconds: 600,
 			},
 		},
-		DefaultDecision:      val.defaultDecisionPath,
-		PersistenceDirectory: val.persistDir,
+		DefaultDecision:      cfg.defaultDecisionPath,
+		PersistenceDirectory: cfg.persistDir,
 	}
 
 	asJSON, err := json.Marshal(config)

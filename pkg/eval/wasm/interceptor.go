@@ -4,13 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/infobloxopen/atlas-authz-middleware/utils"
-	"go.opencensus.io/trace"
+	"strconv"
 	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/sirupsen/logrus"
+	"go.opencensus.io/trace"
 	"google.golang.org/grpc"
+	"gopkg.in/yaml.v3"
+
+	"github.com/infobloxopen/atlas-authz-middleware/utils"
 )
 
 // Override to set your servicename
@@ -27,7 +30,10 @@ func UnaryServerInterceptor(opts ...Option) grpc.UnaryServerInterceptor {
 	opthub.claimsVerifier = utils.UnverifiedClaimFromBearers
 	opthub.entitledServices = nil
 	opthub.acctEntitlementsApi = DefaultAcctEntitlementsApiPath
+	opthub.bundleResourcePath = DefaultBundleResourcePath
 	opthub.decisionPath = DefaultDecisionPath
+	opthub.logger = logrus.New()
+	opthub.logger.SetLevel(DefaultLoggingLevel)
 
 	for _, opt := range opts {
 		opt(opthub)
@@ -41,6 +47,8 @@ func UnaryServerInterceptor(opts ...Option) grpc.UnaryServerInterceptor {
 		}
 		opthub.Authorizers = []Authorizer{a}
 	}
+
+	dumpOptConfig(opthub)
 
 	return func(ctx context.Context, grpcReq interface{}, info *grpc.UnaryServerInfo, grpcUnaryHandler grpc.UnaryHandler) (interface{}, error) {
 		logger := ctxlogrus.Extract(ctx)
@@ -121,4 +129,36 @@ func UnaryServerInterceptor(opts ...Option) grpc.UnaryServerInterceptor {
 
 		return grpcUnaryHandler(ctx, grpcReq)
 	}
+}
+
+func dumpOptConfig(opthub *OptHub) {
+	opts := map[string]interface{}{
+		"loggingLevel":        opthub.logger.GetLevel().String(),
+		"applicaton":          opthub.applicaton,
+		"decisionPath":        opthub.decisionPath,
+		"bundleResourcePath":  opthub.bundleResourcePath,
+		"entitledServices":    opthub.entitledServices,
+		"acctEntitlementsApi": opthub.acctEntitlementsApi,
+	}
+
+	for i, a := range opthub.Authorizers {
+		opts["authorizer-"+strconv.Itoa(i)] = fmt.Sprintf("%T", a)
+	}
+
+	asJSON, err := json.Marshal(opts)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	logrus.Infof("AuthZ middleware options config JSON: \n%s", asJSON)
+
+	intermediary := map[string]interface{}{}
+	if err := yaml.Unmarshal(asJSON, &intermediary); err != nil {
+		logrus.Fatal(err)
+	}
+
+	asYAML, err := yaml.Marshal(intermediary)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	logrus.Infof("AuthZ middleware options config YAML: \n%s", asYAML)
 }

@@ -39,7 +39,24 @@ func Test_autorizer_Authorize(t *testing.T) {
 	)
 
 	with := File
-	opaCfg := OPAConfigValues{}
+	cfg := &Config{
+		applicaton:           "TODO",
+		decisionInputHandler: new(DefaultDecisionInputer),
+		claimsVerifier:       utils.UnverifiedClaimFromBearers,
+		entitledServices:     nil,
+		acctEntitlementsApi:  DefaultAcctEntitlementsApiPath,
+		logger:               logrus.New(),
+		opaConfig: opaConfig{
+			decisionPath:        "TODO",
+			defaultDecisionPath: DefaultDecisionPath,
+			bundleResourcePath:  "TODO",
+			serviceURL:          "TODO",
+			serviceCredToken:    "",
+			persistBundle:       false,
+			persistDir:          "",
+			opaConfigFile:       nil,
+		},
+	}
 
 	switch with {
 	case Server:
@@ -60,8 +77,8 @@ func Test_autorizer_Authorize(t *testing.T) {
 		svr := httptest.NewServer(http.HandlerFunc(hf))
 		defer svr.Close()
 
-		opaCfg.address = svr.URL
-		opaCfg.resource = "/bundles/bundle.tar.gz"
+		cfg.serviceURL = svr.URL
+		cfg.bundleResourcePath = "/bundles/bundle.tar.gz"
 	case File:
 		dataTestDir, err := filepath.Abs("./data_test")
 		if err != nil {
@@ -69,25 +86,12 @@ func Test_autorizer_Authorize(t *testing.T) {
 		}
 		t.Logf("Absolute path: %s", dataTestDir)
 
-		opaCfg.address = ""
-		opaCfg.resource = "file://" + dataTestDir + "/bundle.tar.gz"
+		cfg.serviceURL = ""
+		cfg.bundleResourcePath = "file://" + dataTestDir + "/bundle.tar.gz"
 	}
 
-	logger := logrus.New()
-	logger.SetLevel(logrus.DebugLevel)
-
-	opaCfg.defaultDecisionPath = DefaultDecisionPath
-	opaCfg.persistBundle = false
-	opaCfg.persistDir = ""
-
-	cfg := &Config{
-		decisionPath:         DefaultDecisionPath,
-		opaConfigFile:        createOPAConfigFile(opaCfg, logger),
-		decisionInputHandler: new(DefaultDecisionInputer),
-		claimsVerifier:       utils.UnverifiedClaimFromBearers,
-		entitledServices:     nil,
-		acctEntitlementsApi:  DefaultAcctEntitlementsApiPath,
-	}
+	cfg.logger.SetLevel(logrus.DebugLevel)
+	cfg.opaConfigFile = createOPAConfigFile(&cfg.opaConfig, cfg.logger)
 
 	a, err := NewAutorizer(cfg)
 	if err != nil {
@@ -105,7 +109,7 @@ func Test_autorizer_Authorize(t *testing.T) {
 		{
 			name: "AuthzOk",
 			ctx: utils_test.BuildCtx(t,
-				utils_test.WithLogger(logger),
+				utils_test.WithLogger(cfg.logger),
 				utils_test.WithRequestID("request-1"),
 				utils_test.WithJWTAccountID("1073"),
 				utils_test.WithJWTIdentityAccountID("a2db41ad-3830-495d-ba07-000000001073"),
