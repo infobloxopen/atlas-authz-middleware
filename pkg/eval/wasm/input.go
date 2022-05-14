@@ -2,14 +2,17 @@ package wasm
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"strings"
+
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
+	"github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v3"
 
 	"github.com/infobloxopen/atlas-app-toolkit/requestid"
 	"github.com/infobloxopen/atlas-authz-middleware/utils"
 	atlas_claims "github.com/infobloxopen/atlas-claims"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -84,9 +87,7 @@ func parseEndpoint(fullMethod string) string {
 }
 
 func composeInput(ctx context.Context, cfg *Config, fullMethod string, grpcReq interface{}) (*InputPayload, error) {
-	log := ctxlogrus.Extract(ctx).WithFields(logrus.Fields{
-		"application": cfg.applicaton,
-	})
+	log := ctxlogrus.Extract(ctx)
 
 	// This fetches auth data from auth headers in metadata from context:
 	// bearer = data from "authorization bearer" metadata header
@@ -121,11 +122,35 @@ func composeInput(ctx context.Context, cfg *Config, fullMethod string, grpcReq i
 		DecisionInput:    *decisionInput,
 	}
 
-	p4debug := payload
-	p4debug.JWT = utils.RedactJWT4Debug(p4debug.JWT)
-	log.WithFields(logrus.Fields{
-		"payload": p4debug,
-	}).Debug("opa_request")
-
 	return &payload, nil
+}
+
+func dumpInputPayload(log *logrus.Logger, payload InputPayload, inYAML bool) {
+	payload.JWT = utils.RedactJWT4Debug(payload.JWT)
+	asJSON, err := json.Marshal(payload)
+	if err != nil {
+		log.Errorf("JSON marshal error: %v", err)
+		log.Printf("OPA input payload: %+v", payload)
+		return
+	}
+
+	if inYAML {
+		m := map[string]interface{}{}
+		if err := yaml.Unmarshal(asJSON, &m); err != nil {
+			log.Errorf("YAML unmarshal error: %v", err)
+			log.Printf("OPA input payload JSON: %s", string(asJSON))
+			return
+		}
+
+		asYAML, err := yaml.Marshal(m)
+		if err != nil {
+			log.Errorf("YAML marshal error: %v", err)
+			log.Printf("OPA input payload JSON: %s", string(asJSON))
+			return
+		}
+		log.Printf("OPA input payload YAML: \n%s", string(asYAML))
+		return
+	}
+
+	log.Printf("OPA input payload JSON: \n%s", string(asJSON))
 }

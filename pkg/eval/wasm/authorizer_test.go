@@ -153,7 +153,7 @@ func Test_autorizer_Authorize(t *testing.T) {
 				return string(bs)
 			}())
 
-			resMap, err3 := parseResult(tt.ctx, result)
+			_, resMap, err3 := parseResult(tt.ctx, result)
 			t.Logf("Parsed result map: %+v", func() string {
 				bs, _ := json.MarshalIndent(resMap, "", "  ")
 				return string(bs)

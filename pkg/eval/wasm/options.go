@@ -1,6 +1,13 @@
 package wasm
 
-import "github.com/sirupsen/logrus"
+import (
+	"encoding/json"
+	"fmt"
+	"strconv"
+
+	"github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v3"
+)
 
 type OptHub struct {
 	*Config
@@ -90,5 +97,53 @@ func WithAcctEntitlementsApiPath(acctEntitlementsApi string) Option {
 func WithLogger(logger *logrus.Logger) Option {
 	return func(c *OptHub) {
 		c.logger = logger
+	}
+}
+
+func dumpOptConfig(log *logrus.Logger, opthub *OptHub, inYAML bool) {
+	opts := map[string]interface{}{
+		"loggingLevel":        opthub.logger.GetLevel().String(),
+		"applicaton":          opthub.applicaton,
+		"decisionPath":        opthub.decisionPath,
+		"bundleResourcePath":  opthub.bundleResourcePath,
+		"entitledServices":    opthub.entitledServices,
+		"acctEntitlementsApi": opthub.acctEntitlementsApi,
+	}
+
+	for i, a := range opthub.Authorizers {
+		opts["authorizer-"+strconv.Itoa(i)] = fmt.Sprintf("%T", a)
+	}
+
+	asJSON, err := json.Marshal(opts)
+	if err != nil {
+		log.Errorf("JSON marshal error: %v", err)
+		log.Printf("Options config: %+v", opts)
+		return
+	}
+
+	if inYAML {
+		m := map[string]interface{}{}
+		if err := yaml.Unmarshal(asJSON, &m); err != nil {
+			log.Errorf("YAML unmarshal error: %v", err)
+			log.Printf("AuthZ middleware options config JSON: %s", string(asJSON))
+			return
+		}
+
+		asYAML, err := yaml.Marshal(m)
+		if err != nil {
+			log.Errorf("YAML marshal error: %v", err)
+			log.Printf("AuthZ middleware options config JSON: %s", string(asJSON))
+			return
+		}
+		log.Printf("AuthZ middleware options config YAML: \n%s", string(asYAML))
+		return
+	}
+	log.Infof("AuthZ middleware options config JSON: \n%s", string(asJSON))
+}
+
+func verifyOptConfig(opthub *OptHub) {
+	switch {
+	case opthub.applicaton == "unknown":
+		opthub.logger.Panic("application should be set")
 	}
 }

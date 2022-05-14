@@ -3,22 +3,15 @@ package wasm
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
+	"github.com/open-policy-agent/opa/sdk"
 	"github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
 	"google.golang.org/grpc"
-	"gopkg.in/yaml.v3"
 
 	"github.com/infobloxopen/atlas-authz-middleware/utils"
-)
-
-// Override to set your servicename
-var (
-	SERVICENAME = "opa"
 )
 
 // UnaryServerInterceptor returns a new unary client interceptor
@@ -26,11 +19,13 @@ var (
 func UnaryServerInterceptor(opts ...Option) grpc.UnaryServerInterceptor {
 	opthub := &OptHub{}
 	// defaults
+	opthub.applicaton = "unknown"
 	opthub.decisionInputHandler = new(DefaultDecisionInputer)
 	opthub.claimsVerifier = utils.UnverifiedClaimFromBearers
 	opthub.entitledServices = nil
 	opthub.acctEntitlementsApi = DefaultAcctEntitlementsApiPath
 	opthub.bundleResourcePath = DefaultBundleResourcePath
+	opthub.defaultDecisionPath = DefaultDecisionPath
 	opthub.decisionPath = DefaultDecisionPath
 	opthub.logger = logrus.New()
 	opthub.logger.SetLevel(DefaultLoggingLevel)
@@ -48,117 +43,85 @@ func UnaryServerInterceptor(opts ...Option) grpc.UnaryServerInterceptor {
 		opthub.Authorizers = []Authorizer{a}
 	}
 
-	dumpOptConfig(opthub)
+	dumpOptConfig(opthub.logger, opthub, false)
+	verifyOptConfig(opthub)
 
 	return func(ctx context.Context, grpcReq interface{}, info *grpc.UnaryServerInfo, grpcUnaryHandler grpc.UnaryHandler) (interface{}, error) {
 		logger := ctxlogrus.Extract(ctx)
 
+		var err error
 		for _, a := range opthub.Authorizers {
+			logger = logger.WithField("authorizer", a).
+				WithField("application", opthub.applicaton)
+
 			// compose imput/payload to OPA
-			input, err := composeInput(ctx, opthub.Config, info.FullMethod, grpcReq)
+			var input *InputPayload
+			input, err = composeInput(ctx, opthub.Config, info.FullMethod, grpcReq)
 			if err != nil {
 				logger.WithError(err).Error("unable_compose_input")
-				return nil, err
+				continue
+			} else if opthub.Config.logger.GetLevel() >= logrus.DebugLevel {
+				dumpInputPayload(opthub.Config.logger, *input, false)
 			}
-
-			var result interface{}
 
 			// enable tracing
-			now := time.Now()
-			js, err := json.Marshal(input)
+			span, at := &trace.Span{}, time.Time{}
+			ctx, span, err = startSpan(ctx, logger, input)
 			if err != nil {
-				logger.WithFields(logrus.Fields{
-					"request_opa_payload": input,
-				}).WithError(err).Errorf("JSON_marshal_error: %v", err)
-				return nil, ErrInvalidArg
+				dumpInputPayload(opthub.Config.logger, *input, false)
+				continue
 			}
-
-			// To enable tracing, the context must have a tracer attached
-			// to it. See the tracing documentation on how to do this.
-			ctx, span := trace.StartSpan(ctx, fmt.Sprint(SERVICENAME, info.FullMethod))
-			{
-				span.Annotate([]trace.Attribute{
-					trace.StringAttribute("in", string(js)),
-				}, "in")
-			}
-			// FIXME: perhaps only inject these fields if this is the default handler
-
-			// Metrics, logging, tracing handler
-			defer func() {
-				// opencensus Status is based on gRPC status codes
-				// https://pkg.go.dev/go.opencensus.io/trace?tab=doc#Status
-				// err == nil will return {Code: 200, Message:""}
-				span.SetStatus(trace.Status{
-					Code:    int32(grpc.Code(err)),
-					Message: grpc.ErrorDesc(err),
-				})
-				span.End()
-				logger.WithFields(logrus.Fields{
-					"opaResp": result,
-					"elapsed": time.Since(now),
-				}).Debug("authorization_result")
-			}()
 
 			// authorize
-			logger.WithField("authorizer", a).Debugf("input: %+v", input)
+			var result *sdk.DecisionResult
 			result, err = a.Authorize(ctx, input)
 			if err != nil {
-				logger.WithError(err).WithField("authorizer", a).Error("unable_authorize")
-				return nil, ErrUnknown // TODO
+				logger.WithError(err).Error("unable_authorize")
+				endSpan(span, err)
+				continue
+			} else if opthub.Config.logger.GetLevel() >= logrus.DebugLevel {
+				dumpDecisionResult(opthub.Config.logger, *result, false)
 			}
 
-			resultMap, err := parseResult(ctx, result)
-			if err != nil {
-				logger.WithError(err).Error("result_parse_error")
-				return nil, ErrUnknown // TODO
-			}
+			logger.WithFields(logrus.Fields{
+				"elapsed": time.Since(at),
+			}).Debug("authorization_result")
 
-			// Log non-err opa responses
-			{
-				raw, _ := json.Marshal(resultMap)
+			// trace non-err OPA decision result
+			if raw, err := json.Marshal(result); err != nil {
+				logger.WithError(err).Errorf("JSON_marshal_error: %v", err)
+				dumpDecisionResult(opthub.Config.logger, *result, false)
+				endSpan(span, err)
+				continue
+			} else {
 				span.Annotate([]trace.Attribute{
 					trace.StringAttribute("out", string(raw)),
 				}, "out")
 			}
 
-			if !resultMap.Allow() {
-				logger.WithError(err).WithField("authorizer", a).Error("request_forbidden")
-				return nil, ErrForbidden
+			// parse result
+			var resultMap ResultMap
+			ctx, resultMap, err = parseResult(ctx, result)
+			if err != nil {
+				logger.WithError(err).Error("parse_result_error")
+				endSpan(span, err)
+				continue
+			} else if opthub.Config.logger.GetLevel() >= logrus.DebugLevel {
+				dumpParsedResult(opthub.Config.logger, resultMap, false)
 			}
+
+			// allow or not allow
+			if !resultMap.Allow() {
+				logger.WithError(err).Error("request_forbidden")
+				endSpan(span, err)
+				err = ErrForbidden
+				continue
+			}
+
+			endSpan(span, nil)
+			break
 		}
 
 		return grpcUnaryHandler(ctx, grpcReq)
 	}
-}
-
-func dumpOptConfig(opthub *OptHub) {
-	opts := map[string]interface{}{
-		"loggingLevel":        opthub.logger.GetLevel().String(),
-		"applicaton":          opthub.applicaton,
-		"decisionPath":        opthub.decisionPath,
-		"bundleResourcePath":  opthub.bundleResourcePath,
-		"entitledServices":    opthub.entitledServices,
-		"acctEntitlementsApi": opthub.acctEntitlementsApi,
-	}
-
-	for i, a := range opthub.Authorizers {
-		opts["authorizer-"+strconv.Itoa(i)] = fmt.Sprintf("%T", a)
-	}
-
-	asJSON, err := json.Marshal(opts)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	logrus.Infof("AuthZ middleware options config JSON: \n%s", asJSON)
-
-	intermediary := map[string]interface{}{}
-	if err := yaml.Unmarshal(asJSON, &intermediary); err != nil {
-		logrus.Fatal(err)
-	}
-
-	asYAML, err := yaml.Marshal(intermediary)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	logrus.Infof("AuthZ middleware options config YAML: \n%s", asYAML)
 }

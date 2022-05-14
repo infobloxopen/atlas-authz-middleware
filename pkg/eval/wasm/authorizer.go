@@ -2,6 +2,8 @@ package wasm
 
 import (
 	"context"
+	"encoding/json"
+	"gopkg.in/yaml.v3"
 	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
@@ -20,7 +22,7 @@ var (
 
 // Authorizer interface ...
 type Authorizer interface {
-	Authorize(ctx context.Context, input *InputPayload) (interface{}, error)
+	Authorize(ctx context.Context, input *InputPayload) (*sdk.DecisionResult, error)
 }
 
 type autorizer struct {
@@ -45,10 +47,8 @@ func NewAutorizer(config *Config) (*autorizer, error) {
 }
 
 // Authorize ...
-func (a *autorizer) Authorize(ctx context.Context, input *InputPayload) (interface{}, error) {
-	log := ctxlogrus.Extract(ctx).WithFields(logrus.Fields{
-		"application": a.config.applicaton,
-	})
+func (a *autorizer) Authorize(ctx context.Context, input *InputPayload) (*sdk.DecisionResult, error) {
+	log := ctxlogrus.Extract(ctx)
 
 	document := input.DecisionInput.DecisionDocument
 	log.Debugf("input_decision_document: %s", document)
@@ -83,9 +83,34 @@ func (a *autorizer) Authorize(ctx context.Context, input *InputPayload) (interfa
 		}).WithError(err).Errorf("OPA_decision_error: %v", err)
 		return nil, ErrUnknown
 	}
-	log.WithFields(logrus.Fields{
-		"result_id": res.ID,
-	}).Debugf("OPA_result: %v", res.Result)
+	return res, nil
+}
 
-	return res.Result, nil
+func dumpDecisionResult(log *logrus.Logger, result sdk.DecisionResult, inYAML bool) {
+	asJSON, err := json.Marshal(result)
+	if err != nil {
+		log.Errorf("JSON marshal error: %v", err)
+		log.Printf("Decision result: %+v", result)
+		return
+	}
+
+	if inYAML {
+		m := map[string]interface{}{}
+		if err := yaml.Unmarshal(asJSON, &m); err != nil {
+			log.Errorf("YAML unmarshal error: %v", err)
+			log.Printf("Decision result JSON: %+v", asJSON)
+			return
+		}
+
+		asYAML, err := yaml.Marshal(m)
+		if err != nil {
+			log.Errorf("YAML marshal error: %v", err)
+			log.Printf("Decision result JSON: %+v", asJSON)
+			return
+		}
+		log.Printf("Decision result YAML: \n%s", asYAML)
+		return
+	}
+
+	log.Printf("Decision result JSON: \n%s", asJSON)
 }

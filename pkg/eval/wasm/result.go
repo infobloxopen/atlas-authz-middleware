@@ -2,9 +2,14 @@ package wasm
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
-	logger "github.com/sirupsen/logrus"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
+	"github.com/open-policy-agent/opa/sdk"
+	"gopkg.in/yaml.v3"
+
+	"github.com/sirupsen/logrus"
 )
 
 // ResultMap unmarshals the response from OPA into a generic untyped structure
@@ -20,13 +25,15 @@ const (
 	EntitledFeaturesKey = EntitledFeaturesKeyType("entitled_features")
 )
 
-func parseResult(ctx context.Context, result interface{}) (ResultMap, error) {
+func parseResult(ctx context.Context, result *sdk.DecisionResult) (context.Context, ResultMap, error) {
+	log := ctxlogrus.Extract(ctx)
+
 	m := make(ResultMap)
-	switch v := result.(type) {
+	switch v := result.Result.(type) {
 	case map[string]interface{}:
 		m = v
 	default:
-		return nil, ErrInvalidArg // TODO
+		return ctx, nil, ErrInvalidArg // TODO
 	}
 
 	// When we query OPA without url path, it returns results NOT encapsulated inside "result":
@@ -52,12 +59,12 @@ func parseResult(ctx context.Context, result interface{}) (ResultMap, error) {
 	// adding obligations data to context if present
 	ctx, err = addObligations(ctx, m)
 	if err != nil {
-		logger.WithField("result_map", fmt.Sprintf("%#v", m)).
+		log.WithField("result_map", fmt.Sprintf("%#v", m)).
 			WithError(err).Error("parse_obligations_error")
-		return nil, ErrInvalidObligations
+		return ctx, nil, ErrInvalidObligations
 	}
 
-	return m, nil
+	return ctx, m, nil
 }
 
 // AddRawEntitledFeatures adds raw entitled_features (if they exist) from OPAResponse to context
@@ -94,4 +101,33 @@ func (m ResultMap) Allow() bool {
 		return false
 	}
 	return allow
+}
+
+func dumpParsedResult(log *logrus.Logger, result ResultMap, inYAML bool) {
+	asJSON, err := json.Marshal(result)
+	if err != nil {
+		log.Errorf("JSON marshal error: %v", err)
+		log.Printf("Parsed result: %+v", result)
+		return
+	}
+
+	if inYAML {
+		m := map[string]interface{}{}
+		if err := yaml.Unmarshal(asJSON, &m); err != nil {
+			log.Errorf("YAML unmarshal error: %v", err)
+			log.Printf("Parsed result JSON: %+v", asJSON)
+			return
+		}
+
+		asYAML, err := yaml.Marshal(m)
+		if err != nil {
+			log.Errorf("YAML marshal error: %v", err)
+			log.Printf("Parsed result JSON: %+v", asJSON)
+			return
+		}
+		log.Printf("Parsed result YAML: \n%s", asYAML)
+		return
+	}
+
+	log.Printf("Parsed result JSON: \n%s", asJSON)
 }
