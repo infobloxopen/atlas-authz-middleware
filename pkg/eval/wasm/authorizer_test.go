@@ -8,13 +8,15 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/infobloxopen/atlas-authz-middleware/utils"
 	"github.com/infobloxopen/atlas-authz-middleware/utils_test"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -30,33 +32,53 @@ type EmptyObj struct {
 }
 
 func Test_autorizer_Authorize(t *testing.T) {
-	// https://github.com/stevef1uk/opa-bundle-server
-	hf := func(w http.ResponseWriter, r *http.Request) {
-		t.Logf("Received a request: %+v", r)
-		data, err := ioutil.ReadFile("./data_test/bundle.tar.gz")
+	const (
+		_ = iota
+		Server
+		File
+	)
+
+	with := File
+	opaCfg := OPAConfigValues{}
+
+	switch with {
+	case Server:
+		// https://github.com/stevef1uk/opa-bundle-server
+		hf := func(w http.ResponseWriter, r *http.Request) {
+			t.Logf("Received a request: %+v", r)
+			data, err := ioutil.ReadFile("./data_test/bundle.tar.gz")
+			if err != nil {
+				t.Fatal(err)
+			}
+			w.Header().Set("Content-Type", "application/octet-stream")
+			w.Header().Set("Content-Disposition", "attachment; filename="+"bundle.tar.gz")
+			w.Header().Set("Content-Transfer-Encoding", "binary")
+			w.Header().Set("Expires", "0")
+			http.ServeContent(w, r, "Fred", time.Now(), bytes.NewReader(data))
+		}
+
+		svr := httptest.NewServer(http.HandlerFunc(hf))
+		defer svr.Close()
+
+		opaCfg.address = svr.URL
+		opaCfg.resource = "/bundles/bundle.tar.gz"
+	case File:
+		dataTestDir, err := filepath.Abs("./data_test")
 		if err != nil {
 			t.Fatal(err)
 		}
-		w.Header().Set("Content-Type", "application/octet-stream")
-		w.Header().Set("Content-Disposition", "attachment; filename="+"bundle.tar.gz")
-		w.Header().Set("Content-Transfer-Encoding", "binary")
-		w.Header().Set("Expires", "0")
-		http.ServeContent(w, r, "Fred", time.Now(), bytes.NewReader(data))
-	}
+		t.Logf("Absolute path: %s", dataTestDir)
 
-	svr := httptest.NewServer(http.HandlerFunc(hf))
-	defer svr.Close()
+		opaCfg.address = ""
+		opaCfg.resource = "file://" + dataTestDir + "/bundle.tar.gz"
+	}
 
 	logger := logrus.New()
 	logger.SetLevel(logrus.DebugLevel)
 
-	opaCfg := OPAConfigValues{
-		address: svr.URL,
-		resource:            "/bundles/bundle.tar.gz",
-		defaultDecisionPath: DefaultDecisionPath,
-		persistBundle:       false,
-		persistDir:          "",
-	}
+	opaCfg.defaultDecisionPath = DefaultDecisionPath
+	opaCfg.persistBundle = false
+	opaCfg.persistDir = ""
 
 	cfg := &Config{
 		decisionPath:         DefaultDecisionPath,
@@ -81,7 +103,7 @@ func Test_autorizer_Authorize(t *testing.T) {
 		wantErr    bool
 	}{
 		{
-			name: "AllowOk",
+			name: "AuthzOk",
 			ctx: utils_test.BuildCtx(t,
 				utils_test.WithLogger(logger),
 				utils_test.WithRequestID("request-1"),
