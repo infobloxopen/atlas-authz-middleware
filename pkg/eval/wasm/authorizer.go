@@ -31,7 +31,7 @@ type autorizer struct {
 }
 
 func NewAutorizer(config *Config) (*autorizer, error) {
-	config.opaConfigFile = createOPAConfigFile(&config.opaConfig, config.logger)
+	config.opaConfigBuf = createOPAConfigBuf(&config.opaConfig, config.logger)
 	opa, err := startOPA(config)
 
 	if err != nil {

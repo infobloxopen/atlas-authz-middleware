@@ -1,10 +1,8 @@
 package wasm
 
 import (
+	"bytes"
 	"encoding/json"
-	"io/ioutil"
-	"os"
-
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 )
@@ -41,8 +39,7 @@ type opaConfig struct {
 	persistBundle      bool
 	// persistDir is a directory to store OPA state, for example bundles
 	persistDir string
-	// opaConfigFile configures OPA
-	opaConfigFile *os.File
+	opaConfigBuf  *bytes.Buffer
 }
 
 type Service struct {
@@ -90,10 +87,10 @@ type OPAConfig struct {
 	PersistenceDirectory string             `json:"persistence_directory,omitempty"`
 }
 
-// createOPAConfigFile ...
+// createOPAConfigBuf ...
 // https://www.openpolicyagent.org/docs/latest/configuration/
 // https://github.com/michaelboulton/opa-test/tree/a3cb64f6d8dbaa633e2581e853222025d26c6014/pkg/opa
-func createOPAConfigFile(cfg *opaConfig, log *logrus.Logger) *os.File {
+func createOPAConfigBuf(cfg *opaConfig, log *logrus.Logger) *bytes.Buffer {
 	config := OPAConfig{
 		Services: map[string]Service{
 			"authz": {
@@ -148,16 +145,8 @@ func createOPAConfigFile(cfg *opaConfig, log *logrus.Logger) *os.File {
 	}
 	log.Infof("OPA config YAML: \n%s", asYAML)
 
-	file, err := ioutil.TempFile("", "*.yaml")
-	if err != nil {
-		log.Fatal(err)
-	}
+	var buf bytes.Buffer
+	buf.Write(asYAML)
 
-	_, err = file.Write(asYAML)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	log.Infof("OPA config file name: %s", file.Name())
-	return file
+	return &buf
 }

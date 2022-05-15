@@ -17,7 +17,11 @@ import (
 // UnaryServerInterceptor returns a new unary client interceptor
 // that optionally logs the execution of external gRPC calls.
 func UnaryServerInterceptor(opts ...Option) grpc.UnaryServerInterceptor {
-	opthub := &OptHub{}
+	opthub := &OptHub{
+		Config: &Config{
+			opaConfig: opaConfig{},
+		},
+	}
 	// defaults
 	opthub.applicaton = "unknown"
 	opthub.decisionInputHandler = new(DefaultDecisionInputer)

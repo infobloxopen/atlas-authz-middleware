@@ -54,7 +54,7 @@ func Test_autorizer_Authorize(t *testing.T) {
 			serviceCredToken:    "",
 			persistBundle:       false,
 			persistDir:          "",
-			opaConfigFile:       nil,
+			opaConfigBuf:        nil,
 		},
 	}
 
@@ -91,7 +91,7 @@ func Test_autorizer_Authorize(t *testing.T) {
 	}
 
 	cfg.logger.SetLevel(logrus.DebugLevel)
-	cfg.opaConfigFile = createOPAConfigFile(&cfg.opaConfig, cfg.logger)
+	cfg.opaConfigBuf = createOPAConfigBuf(&cfg.opaConfig, cfg.logger)
 
 	a, err := NewAutorizer(cfg)
 	if err != nil {
