@@ -92,7 +92,8 @@ func UnaryServerInterceptor(opts ...Option) grpc.UnaryServerInterceptor {
 			}).Debug("authorization_result")
 
 			// trace non-err OPA decision result
-			if raw, err := json.Marshal(result); err != nil {
+			var raw []byte
+			if raw, err = json.Marshal(result); err != nil {
 				logger.WithError(err).Errorf("JSON_marshal_error: %v", err)
 				dumpDecisionResult(opthub.Config.logger, *result, false)
 				endSpan(span, err)
@@ -124,6 +125,10 @@ func UnaryServerInterceptor(opts ...Option) grpc.UnaryServerInterceptor {
 
 			endSpan(span, nil)
 			break
+		}
+
+		if err != nil {
+			return nil, err
 		}
 
 		return grpcUnaryHandler(ctx, grpcReq)
