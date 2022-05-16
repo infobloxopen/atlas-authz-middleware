@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/grpc-ecosystem/go-grpc-middleware/util/metautils"
+	"google.golang.org/grpc/metadata"
 	"io/ioutil"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -17,6 +20,64 @@ import (
 	logrus "github.com/sirupsen/logrus"
 	logrustesthook "github.com/sirupsen/logrus/hooks/test"
 )
+
+var result context.Context
+
+type MyDecisionInputr struct {
+	DecisionInput
+}
+
+func (d MyDecisionInputr) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*DecisionInput, error) {
+	return &d.DecisionInput, nil
+}
+
+// Prerequisite: OPA service must be running @ localhost:8181
+// Run the OPA service locally: opa run -s pkg/eval/goapi/data_test/bundle.tar.gz
+// grpc_opa % go test -bench=DefaultAuthorizer_AffirmAuthorization -benchtime=10s -run=dontrunanytests
+// ToDo: Get OPA service to run with dockertest instead of running service as stand alone.
+func BenchmarkDefaultAuthorizer_AffirmAuthorization(b *testing.B) {
+
+	ctx, cancelCtxFn := context.WithCancel(context.Background())
+	//ctx = ctxlogrus.ToContext(ctx, logrus.NewEntry(stdLoggr))
+	defer func() {
+		cancelCtxFn()
+	}()
+
+	decisionDoc := "v1/data/authz/rbac/validate_v1"
+	app := "atlas.tagging"
+	fullMethod := "TagService.List"
+	jwt := "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNzciLCJpZGVudGl0eV91c2VyX2lkIjoiOTBjZDlmYzItYmQ1ZC00YmU4LWI3ZmYtYWYxNzVlNGVjMDU2IiwidXNlcm5hbWUiOiJha3VtYXJAaW5mb2Jsb3guY29tIiwiYWNjb3VudF9pZCI6IjIwMDUyNjQiLCJjc3BfYWNjb3VudF9pZCI6MjAwNTI2NCwiaWRlbnRpdHlfYWNjb3VudF9pZCI6IjkzZWU2MDA3LTBhN2EtNGUxYS04MGRkLTI1OGVmNjhiNmZmNSIsImFjY291bnRfbmFtZSI6Ikhvc3QgVjIiLCJhY2NvdW50X251bWJlciI6IjIwMDUyNjQiLCJjb21wYW55X251bWJlciI6MTAwMDA1NTAxLCJhY2NvdW50X3N0b3JhZ2VfaWQiOjIzMDUyNjQsInNmZGNfYWNjb3VudF9pZCI6IkJMT1hJTlQ5OTg4Nzc2NjU5OSIsImdyb3VwcyI6WyJ1c2VyIiwiYWN0X2FkbWluIiwiaWItYWNjZXNzLWNvbnRyb2wtYWRtaW4iLCJpYi1pbnRlcmFjdGl2ZS11c2VyIl0sInN1YmplY3QiOnsiaWQiOiJha3VtYXJAaW5mb2Jsb3guY29tIiwic3ViamVjdF90eXBlIjoidXNlciIsImF1dGhlbnRpY2F0aW9uX3R5cGUiOiJiZWFyZXIifSwiYXVkIjoiaWItY3RrIiwiZXhwIjoxNjMzNTM1OTU5LCJqdGkiOiJhMmE4NmU0YS1kYWU1LTQ4MWYtYmFjMy02Y2VjMDAxM2RiMjYiLCJpYXQiOjE2MzM1Mjg4MDQsImlzcyI6ImlkZW50aXR5IiwibmJmIjoxNjMzNTI4ODA0fQ.redacted"
+
+	opaIpPort := "http://localhost:8181"
+
+	// Ensure fullMethod is in GRPC fullMethod format acceptable by middleware
+	if matched, _ := regexp.MatchString(`^[[:alnum:]]+\.[[:alnum:]]+$`, fullMethod); matched {
+		fullMethod = strings.Replace(fullMethod, `.`, `/`, -1)
+		fullMethod = `/service.` + fullMethod
+	}
+
+	// Middleware will add `/` prefix to decisionDoc document, so remove it
+	decisionDoc = strings.TrimPrefix(decisionDoc, `/`)
+
+	// From https://github.com/grpc-ecosystem/go-grpc-middleware/blob/master/auth/metadata_test.go
+	bearer := fmt.Sprintf(`bearer %s`, jwt)
+	md := metadata.Pairs(`authorization`, bearer)
+	ctx = metautils.NiceMD(md).ToIncoming(ctx)
+
+	var decInputr MyDecisionInputr
+	decInputr.DecisionInput.DecisionDocument = decisionDoc
+
+	authzr := NewDefaultAuthorizer(app,
+		WithAddress(opaIpPort),
+		WithDecisionInputHandler(&decInputr),
+	)
+
+	for i := 0; i < b.N; i++ {
+		resultCtx, _ := authzr.AffirmAuthorization(ctx, fullMethod, nil)
+		result = resultCtx
+	}
+
+}
 
 func TestRedactJWT(t *testing.T) {
 	token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
