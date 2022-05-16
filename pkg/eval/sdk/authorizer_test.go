@@ -81,7 +81,7 @@ func BenchmarkAutorizer_Authorize(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	tests := []struct {
+	tt := struct {
 		name       string
 		ctx        context.Context
 		cfg        *Config
@@ -89,50 +89,44 @@ func BenchmarkAutorizer_Authorize(b *testing.B) {
 		wantRes    ResultMap
 		wantErr    bool
 	}{
-		{
-			name: "AuthzOk",
-			ctx: utils_test.BuildCtxForBenchmark(b,
-				utils_test.WithLogger(cfg.logger),
-				utils_test.WithRequestID("request-1"),
-				utils_test.WithJWTAccountID("1073"),
-				utils_test.WithJWTIdentityAccountID("a2db41ad-3830-495d-ba07-000000001073"),
-				utils_test.WithJWTGroups("act_admin",
-					"user",
-					"ib-access-control-admin",
-					"ib-td-admin",
-					"rb-group-test-0011",
-					"bootstrap-test-group",
-					"ib-ddi-admin",
-					"ib-interactive-user"),
-				utils_test.WithJWTAudience("ib-ctk")),
-			cfg: func() *Config {
-				cfg.applicaton = "atlas.tagging"
-				cfg.decisionPath = DefaultDecisionPath
-				return cfg
-			}(),
-			fullMethod: "/service.TagService/List",
-			wantRes: ResultMap{
-				"allow": true,
-				"obligations": map[string]interface{}{
-					"authz.rbac.entitlement": EmptyObj{},
-					"authz.rbac.rbac":        EmptyObj{},
-				},
-				"request_id": "request-1",
+		name: "AuthzOk",
+		ctx: utils_test.BuildCtxForBenchmark(b,
+			utils_test.WithLogger(cfg.logger),
+			utils_test.WithRequestID("request-1"),
+			utils_test.WithJWTAccountID("1073"),
+			utils_test.WithJWTIdentityAccountID("a2db41ad-3830-495d-ba07-000000001073"),
+			utils_test.WithJWTGroups("act_admin",
+				"user",
+				"ib-access-control-admin",
+				"ib-td-admin",
+				"rb-group-test-0011",
+				"bootstrap-test-group",
+				"ib-ddi-admin",
+				"ib-interactive-user"),
+			utils_test.WithJWTAudience("ib-ctk")),
+		cfg: func() *Config {
+			cfg.applicaton = "atlas.tagging"
+			cfg.decisionPath = DefaultDecisionPath
+			return cfg
+		}(),
+		fullMethod: "/service.TagService/List",
+		wantRes: ResultMap{
+			"allow": true,
+			"obligations": map[string]interface{}{
+				"authz.rbac.entitlement": EmptyObj{},
+				"authz.rbac.rbac":        EmptyObj{},
 			},
-			wantErr: false,
+			"request_id": "request-1",
 		},
+		wantErr: false,
 	}
 
 	var res interface{}
-
+	input, _ := composeInput(tt.ctx, tt.cfg, tt.fullMethod, nil)
 	for i := 0; i < b.N; i++ {
-		for _, tt := range tests {
-			input, _ := composeInput(tt.ctx, tt.cfg, tt.fullMethod, nil)
-			res, _ = a.Authorize(tt.ctx, input)
-		}
-		result = res
+		res, _ = a.Authorize(tt.ctx, input)
 	}
-
+	result = res
 }
 
 func Test_autorizer_Authorize(t *testing.T) {
