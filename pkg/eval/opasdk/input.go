@@ -1,4 +1,4 @@
-package sdk
+package opasdk
 
 import (
 	"context"
