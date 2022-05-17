@@ -3,25 +3,15 @@ package utils_test
 import (
 	"context"
 	"fmt"
-	"testing"
-
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/metadata"
 )
 
-func NewContextWithJWTClaims(t *testing.T, ctx context.Context, claims jwt.MapClaims) context.Context {
+func NewContextWithJWTClaims(log *logrus.Logger, ctx context.Context, claims jwt.MapClaims) context.Context {
 	token, err := MakeJWTFromClaims(claims)
 	if err != nil {
-		t.Fatalf("MakeJWTFromClaims err: %v", err)
-	}
-
-	return NewContextWithJWT(ctx, token)
-}
-
-func NewContextWithJWTClaimsForBenchmark(t *testing.B, ctx context.Context, claims jwt.MapClaims) context.Context {
-	token, err := MakeJWTFromClaims(claims)
-	if err != nil {
-		t.Fatalf("MakeJWTFromClaims err: %v", err)
+		log.Fatalf("MakeJWTFromClaims err: %v", err)
 	}
 
 	return NewContextWithJWT(ctx, token)

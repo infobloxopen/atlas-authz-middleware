@@ -88,7 +88,7 @@ func UnaryServerInterceptor(opts ...Option) grpc.UnaryServerInterceptor {
 			}
 
 			logger.WithFields(logrus.Fields{
-				"elapsed": time.Since(at),
+				"elapsed_ms": time.Since(at).Milliseconds(),
 			}).Debug("authorization_result")
 
 			// trace non-err OPA decision result

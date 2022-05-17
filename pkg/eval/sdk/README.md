@@ -12,3 +12,13 @@
 	))
 ```
 
+# Benchmarking
+
+Run 
+
+```go
+
+go test -bench=Autorizer_Authorize -benchtime=10s -run=dontrunanytests -benchmem
+
+```
+

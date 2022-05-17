@@ -90,8 +90,8 @@ func BenchmarkAutorizer_Authorize(b *testing.B) {
 		wantErr    bool
 	}{
 		name: "AuthzOk",
-		ctx: utils_test.BuildCtxForBenchmark(b,
-			utils_test.WithLogger(cfg.logger),
+		ctx: utils_test.BuildCtx(cfg.logger,
+			utils_test.WithLogger(true),
 			utils_test.WithRequestID("request-1"),
 			utils_test.WithJWTAccountID("1073"),
 			utils_test.WithJWTIdentityAccountID("a2db41ad-3830-495d-ba07-000000001073"),
@@ -103,7 +103,8 @@ func BenchmarkAutorizer_Authorize(b *testing.B) {
 				"bootstrap-test-group",
 				"ib-ddi-admin",
 				"ib-interactive-user"),
-			utils_test.WithJWTAudience("ib-ctk")),
+			utils_test.WithJWTAudience("ib-ctk"),
+			utils_test.WithExpirationDate(time.Now().Add(10*time.Minute))),
 		cfg: func() *Config {
 			cfg.applicaton = "atlas.tagging"
 			cfg.decisionPath = DefaultDecisionPath
@@ -206,8 +207,8 @@ func Test_autorizer_Authorize(t *testing.T) {
 	}{
 		{
 			name: "AuthzOk",
-			ctx: utils_test.BuildCtx(t,
-				utils_test.WithLogger(cfg.logger),
+			ctx: utils_test.BuildCtx(cfg.logger,
+				utils_test.WithLogger(true),
 				utils_test.WithRequestID("request-1"),
 				utils_test.WithJWTAccountID("1073"),
 				utils_test.WithJWTIdentityAccountID("a2db41ad-3830-495d-ba07-000000001073"),
@@ -219,7 +220,8 @@ func Test_autorizer_Authorize(t *testing.T) {
 					"bootstrap-test-group",
 					"ib-ddi-admin",
 					"ib-interactive-user"),
-				utils_test.WithJWTAudience("ib-ctk")),
+				utils_test.WithJWTAudience("ib-ctk"),
+				utils_test.WithExpirationDate(time.Now().Add(time.Minute))),
 			cfg: func() *Config {
 				cfg.applicaton = "atlas.tagging"
 				cfg.decisionPath = DefaultDecisionPath
