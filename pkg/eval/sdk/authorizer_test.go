@@ -42,7 +42,7 @@ type AuthorizeStruct struct {
 
 var result interface{}
 
-// wasm % go test -bench=Autorizer_Authorize -benchtime=10s -run=dontrunanytests
+// sdk % go test -bench=Autorizer_Authorize -benchtime=10s -run=dontrunanytests -benchmem
 //ToDo: Benchmark parallel executions
 func BenchmarkAutorizer_Authorize(b *testing.B) {
 	cfg := &Config{

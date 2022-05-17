@@ -6,10 +6,16 @@ import (
 	"errors"
 	"fmt"
 	"github.com/grpc-ecosystem/go-grpc-middleware/util/metautils"
+	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v3/docker"
 	"google.golang.org/grpc/metadata"
 	"io/ioutil"
+	"log"
+	"net/http"
+	"os"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -31,14 +37,68 @@ func (d MyDecisionInputr) GetDecisionInput(ctx context.Context, fullMethod strin
 	return &d.DecisionInput, nil
 }
 
-// Prerequisite: OPA service must be running @ localhost:8181
-// Run the OPA service locally: opa run -s pkg/eval/goapi/data_test/bundle.tar.gz
-// grpc_opa % go test -bench=DefaultAuthorizer_AffirmAuthorization -benchtime=10s -run=dontrunanytests
-// ToDo: Get OPA service to run with dockertest instead of running service as stand alone.
-func BenchmarkDefaultAuthorizer_AffirmAuthorization(b *testing.B) {
+func TestMain(m *testing.M) {
+	// uses a sensible default on windows (tcp/http) and linux/osx (socket)
+	pool, err := dockertest.NewPool("")
+	if err != nil {
+		log.Fatalf("Could not connect to docker: %s", err)
+	}
 
+	// pulls an image, creates a container based on it and runs it. pool.Run OR pool.RunWithOptions
+	// resource, err := pool.Run("openpolicyagent/opa", "latest", []string{"--server"})
+	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
+		Repository:   "openpolicyagent/opa",
+		Tag:          "0.40.0",
+		ExposedPorts: []string{"8181"},
+		PortBindings: map[docker.Port][]docker.PortBinding{
+			"8181": {
+				{HostIP: "0.0.0.0", HostPort: strconv.Itoa(8181)},
+			},
+		},
+		Mounts: []string{"/Users/jdaripineni/go/src/github.com/Infoblox-CTO/atlas-authz-middleware:/atlas-authz-middleware"},
+		Cmd:    []string{"run", "--server", "--bundle", "/atlas-authz-middleware/pkg/eval/sdk/data_test/bundle.tar.gz"},
+	}, func(config *docker.HostConfig) {
+		// set AutoRemove to true so that stopped container goes away by itself
+		config.AutoRemove = true
+		config.RestartPolicy = docker.RestartPolicy{
+			Name: "no",
+		}
+	})
+
+	if err != nil {
+		log.Fatalf("Could not start resource: %s", err)
+	}
+
+	// exponential backoff-retry, because the application in the container might not be ready to accept connections yet
+	if err := pool.Retry(func() error {
+		var err error
+		resp, err := http.Get("http://localhost:8181")
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+		return nil
+	}); err != nil {
+		log.Fatalf("Could not ping OPA: %s", err)
+	}
+
+	code := m.Run()
+
+	// You can't defer this because os.Exit doesn't care for defer
+	if err := pool.Purge(resource); err != nil {
+		log.Fatalf("Could not purge resource: %s", err)
+	}
+
+	os.Exit(code)
+}
+
+// Prerequisite: OPA service must be running @ localhost:8181.
+// For OPA service, use dockertest (runs from TestMain above) OR run it as standalone service as shown below (opa run).
+// Run the OPA service locally: opa run -s pkg/eval/sdk/data_test/bundle.tar.gz
+// Run benchmark:
+// grpc_opa % go test -bench=DefaultAuthorizer_AffirmAuthorization -benchtime=10s -run=dontrunanytests -benchmem
+func BenchmarkDefaultAuthorizer_AffirmAuthorization(b *testing.B) {
 	ctx, cancelCtxFn := context.WithCancel(context.Background())
-	//ctx = ctxlogrus.ToContext(ctx, logrus.NewEntry(stdLoggr))
 	defer func() {
 		cancelCtxFn()
 	}()
@@ -46,7 +106,7 @@ func BenchmarkDefaultAuthorizer_AffirmAuthorization(b *testing.B) {
 	decisionDoc := "v1/data/authz/rbac/validate_v1"
 	app := "atlas.tagging"
 	fullMethod := "TagService.List"
-	jwt := "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNzciLCJpZGVudGl0eV91c2VyX2lkIjoiOTBjZDlmYzItYmQ1ZC00YmU4LWI3ZmYtYWYxNzVlNGVjMDU2IiwidXNlcm5hbWUiOiJha3VtYXJAaW5mb2Jsb3guY29tIiwiYWNjb3VudF9pZCI6IjIwMDUyNjQiLCJjc3BfYWNjb3VudF9pZCI6MjAwNTI2NCwiaWRlbnRpdHlfYWNjb3VudF9pZCI6IjkzZWU2MDA3LTBhN2EtNGUxYS04MGRkLTI1OGVmNjhiNmZmNSIsImFjY291bnRfbmFtZSI6Ikhvc3QgVjIiLCJhY2NvdW50X251bWJlciI6IjIwMDUyNjQiLCJjb21wYW55X251bWJlciI6MTAwMDA1NTAxLCJhY2NvdW50X3N0b3JhZ2VfaWQiOjIzMDUyNjQsInNmZGNfYWNjb3VudF9pZCI6IkJMT1hJTlQ5OTg4Nzc2NjU5OSIsImdyb3VwcyI6WyJ1c2VyIiwiYWN0X2FkbWluIiwiaWItYWNjZXNzLWNvbnRyb2wtYWRtaW4iLCJpYi1pbnRlcmFjdGl2ZS11c2VyIl0sInN1YmplY3QiOnsiaWQiOiJha3VtYXJAaW5mb2Jsb3guY29tIiwic3ViamVjdF90eXBlIjoidXNlciIsImF1dGhlbnRpY2F0aW9uX3R5cGUiOiJiZWFyZXIifSwiYXVkIjoiaWItY3RrIiwiZXhwIjoxNjMzNTM1OTU5LCJqdGkiOiJhMmE4NmU0YS1kYWU1LTQ4MWYtYmFjMy02Y2VjMDAxM2RiMjYiLCJpYXQiOjE2MzM1Mjg4MDQsImlzcyI6ImlkZW50aXR5IiwibmJmIjoxNjMzNTI4ODA0fQ.redacted"
+	jwt := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2NvdW50X2lkIjoiMTA3MyIsImF1ZCI6ImliLWN0ayIsImdyb3VwcyI6WyJhY3RfYWRtaW4iLCJ1c2VyIiwiaWItYWNjZXNzLWNvbnRyb2wtYWRtaW4iLCJpYi10ZC1hZG1pbiIsInJiLWdyb3VwLXRlc3QtMDAxMSIsImJvb3RzdHJhcC10ZXN0LWdyb3VwIiwiaWItZGRpLWFkbWluIiwiaWItaW50ZXJhY3RpdmUtdXNlciJdLCJpZGVudGl0eV9hY2NvdW50X2lkIjoiYTJkYjQxYWQtMzgzMC00OTVkLWJhMDctMDAwMDAwMDAxMDczIiwiaWRlbnRpdHlfdXNlcl9pZCI6IiIsInNlcnZpY2UiOiIifQ.KbxFNY_VyYB4W97BJQT8VK_qHvcuku_deg_wDpPoG9g"
 
 	opaIpPort := "http://localhost:8181"
 
@@ -72,10 +132,17 @@ func BenchmarkDefaultAuthorizer_AffirmAuthorization(b *testing.B) {
 		WithDecisionInputHandler(&decInputr),
 	)
 
+	var resultCtx context.Context
+	var actualErr error
 	for i := 0; i < b.N; i++ {
-		resultCtx, _ := authzr.AffirmAuthorization(ctx, fullMethod, nil)
-		result = resultCtx
+		resultCtx, actualErr = authzr.AffirmAuthorization(ctx, fullMethod, nil)
+
+		if actualErr != nil {
+			b.Errorf("AffirmAuthorization(explicit) FAIL: unexpected DENY, err=%#v", actualErr)
+		}
 	}
+	// Store result to a package level variable so compiler cannot eliminate benchmark.
+	result = resultCtx
 
 }
 
