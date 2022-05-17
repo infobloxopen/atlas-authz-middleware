@@ -31,6 +31,104 @@ type EmptyObj struct {
 	Obj string `json:"obj,omitempty"`
 }
 
+type AuthorizeStruct struct {
+	name       string
+	ctx        context.Context
+	cfg        *Config
+	fullMethod string
+	wantRes    ResultMap
+	wantErr    bool
+}
+
+var result interface{}
+
+// sdk % go test -bench=Autorizer_Authorize -benchtime=10s -run=dontrunanytests -benchmem
+//ToDo: Benchmark parallel executions
+func BenchmarkAutorizer_Authorize(b *testing.B) {
+	cfg := &Config{
+		applicaton:           "TODO",
+		decisionInputHandler: new(DefaultDecisionInputer),
+		claimsVerifier:       utils.UnverifiedClaimFromBearers,
+		entitledServices:     nil,
+		acctEntitlementsApi:  DefaultAcctEntitlementsApiPath,
+		logger:               logrus.New(),
+		opaConfig: opaConfig{
+			decisionPath:        "TODO",
+			defaultDecisionPath: DefaultDecisionPath,
+			bundleResourcePath:  "TODO",
+			serviceURL:          "TODO",
+			serviceCredToken:    "",
+			persistBundle:       false,
+			persistDir:          "",
+			opaConfigBuf:        nil,
+		},
+	}
+
+	dataTestDir, err := filepath.Abs("./data_test")
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Logf("Absolute path: %s", dataTestDir)
+
+	cfg.serviceURL = ""
+	cfg.bundleResourcePath = "file://" + dataTestDir + "/bundle.tar.gz"
+
+	cfg.logger.SetLevel(logrus.DebugLevel)
+	cfg.opaConfigBuf = createOPAConfigBuf(&cfg.opaConfig, cfg.logger)
+
+	a, err := NewAutorizer(cfg)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	tt := struct {
+		name       string
+		ctx        context.Context
+		cfg        *Config
+		fullMethod string
+		wantRes    ResultMap
+		wantErr    bool
+	}{
+		name: "AuthzOk",
+		ctx: utils_test.BuildCtxForBenchmark(b,
+			utils_test.WithLogger(cfg.logger),
+			utils_test.WithRequestID("request-1"),
+			utils_test.WithJWTAccountID("1073"),
+			utils_test.WithJWTIdentityAccountID("a2db41ad-3830-495d-ba07-000000001073"),
+			utils_test.WithJWTGroups("act_admin",
+				"user",
+				"ib-access-control-admin",
+				"ib-td-admin",
+				"rb-group-test-0011",
+				"bootstrap-test-group",
+				"ib-ddi-admin",
+				"ib-interactive-user"),
+			utils_test.WithJWTAudience("ib-ctk")),
+		cfg: func() *Config {
+			cfg.applicaton = "atlas.tagging"
+			cfg.decisionPath = DefaultDecisionPath
+			return cfg
+		}(),
+		fullMethod: "/service.TagService/List",
+		wantRes: ResultMap{
+			"allow": true,
+			"obligations": map[string]interface{}{
+				"authz.rbac.entitlement": EmptyObj{},
+				"authz.rbac.rbac":        EmptyObj{},
+			},
+			"request_id": "request-1",
+		},
+		wantErr: false,
+	}
+
+	var res interface{}
+	input, _ := composeInput(tt.ctx, tt.cfg, tt.fullMethod, nil)
+	for i := 0; i < b.N; i++ {
+		res, _ = a.Authorize(tt.ctx, input)
+	}
+	result = res
+}
+
 func Test_autorizer_Authorize(t *testing.T) {
 	const (
 		_ = iota

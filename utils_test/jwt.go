@@ -18,6 +18,15 @@ func NewContextWithJWTClaims(t *testing.T, ctx context.Context, claims jwt.MapCl
 	return NewContextWithJWT(ctx, token)
 }
 
+func NewContextWithJWTClaimsForBenchmark(t *testing.B, ctx context.Context, claims jwt.MapClaims) context.Context {
+	token, err := MakeJWTFromClaims(claims)
+	if err != nil {
+		t.Fatalf("MakeJWTFromClaims err: %v", err)
+	}
+
+	return NewContextWithJWT(ctx, token)
+}
+
 // MakeJWTFromClaims generates a jwt string based on the given jwt claims
 func MakeJWTFromClaims(claims jwt.Claims) (string, error) {
 	method := jwt.SigningMethodHS256
