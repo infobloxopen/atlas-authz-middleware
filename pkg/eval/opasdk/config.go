@@ -3,6 +3,7 @@ package opasdk
 import (
 	"bytes"
 	"encoding/json"
+
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 )
@@ -38,8 +39,11 @@ type opaConfig struct {
 	serviceCredToken   string
 	persistBundle      bool
 	// persistDir is a directory to store OPA state, for example bundles
-	persistDir string
-	opaConfigBuf  *bytes.Buffer
+	persistDir                string
+	pollingMinDelaySeconds    int
+	pollingMaxDelaySeconds    int
+	pollingLongTimeoutSeconds int
+	opaConfigBuf              *bytes.Buffer
 }
 
 type Service struct {
@@ -54,6 +58,7 @@ type Bundle struct {
 	Persist  bool     `json:"persist,omitempty"`
 	Polling  *Polling `json:"polling,omitempty"`
 	Signing  *Signing `json:"signing,omitempty"`
+	Trigger  string   `json:"trigger,omitempty"`
 }
 
 type Polling struct {
@@ -109,15 +114,17 @@ func createOPAConfigBuf(cfg *opaConfig, log *logrus.Logger) *bytes.Buffer {
 				Resource: cfg.bundleResourcePath,
 				Persist:  cfg.persistBundle,
 				Polling: &Polling{
-					MinDelaySeconds:    60,
-					MaxDelaySeconds:    120,
-					LongPollTimeoutSec: 10,
+					MinDelaySeconds:    cfg.pollingMinDelaySeconds,
+					MaxDelaySeconds:    cfg.pollingMaxDelaySeconds,
+					LongPollTimeoutSec: cfg.pollingLongTimeoutSeconds,
 				},
 				Signing: nil,
+				Trigger: "periodic",
 			},
 		},
 		DecisionLogs: &DecisionLogs{
-			Service: "authz",
+			//service should be omitted if we don't want to upload logs
+			//Service: "authz",
 			Console: true,
 			Reporting: &Reporting{
 				MinDelaySeconds: 300,
