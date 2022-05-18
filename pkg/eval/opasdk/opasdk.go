@@ -44,7 +44,7 @@ func startOPA(config *Config) (*sdk.OPA, error) {
 			config.logger.Infof("Starting bundle reload every %s", config.bundleReloadInterval)
 			for range time.Tick(config.bundleReloadInterval) {
 				if err := p.Trigger(ctx); err != nil {
-					config.logger.Fatalf("Reload bundle error: %v", err)
+					config.logger.Panicf("Reload bundle error: %v", err)
 				}
 			}
 		}()
