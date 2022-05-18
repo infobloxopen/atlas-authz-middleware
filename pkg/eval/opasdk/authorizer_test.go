@@ -62,6 +62,10 @@ func BenchmarkAutorizer_Authorize(b *testing.B) {
 			persistBundle:       false,
 			persistDir:          "",
 			opaConfigBuf:        nil,
+			pollingMinDelaySeconds:    60,
+			pollingMaxDelaySeconds:    120,
+			pollingLongTimeoutSeconds: 10,
+			bundleReloadInterval:      time.Minute,
 		},
 	}
 
@@ -158,6 +162,7 @@ func Test_autorizer_Authorize(t *testing.T) {
 			pollingMinDelaySeconds:    60,
 			pollingMaxDelaySeconds:    120,
 			pollingLongTimeoutSeconds: 10,
+			bundleReloadInterval:      time.Minute,
 		},
 	}
 
@@ -311,11 +316,11 @@ func Test_autorizer_Authorize(t *testing.T) {
 	}
 }
 
-// Reload bundle test
-// two bundle into ../data_test/bundles
+// Bundle reconfiguration triggers bundle reload.
+// Put two bundles into ../data_test/bundles
 // bundle.tar.gz - allows authorization
 // new.bundle.tar.gz - disallows
-func Test_reload_bundle(t *testing.T) {
+func Test_reconfig_bundle(t *testing.T) {
 	const (
 		_ = iota
 		Server
@@ -343,6 +348,7 @@ func Test_reload_bundle(t *testing.T) {
 			pollingMinDelaySeconds:    60,
 			pollingMaxDelaySeconds:    120,
 			pollingLongTimeoutSeconds: 10,
+			bundleReloadInterval:      time.Minute,
 		},
 	}
 
