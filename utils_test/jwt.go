@@ -13,7 +13,7 @@ func NewContextWithJWTClaims(log *logrus.Logger, ctx context.Context, claims jwt
 	if err != nil {
 		log.Fatalf("MakeJWTFromClaims err: %v", err)
 	}
-
+	log.Debugf("Built ctx: %s", token)
 	return NewContextWithJWT(ctx, token)
 }
 

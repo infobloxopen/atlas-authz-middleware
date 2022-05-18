@@ -20,6 +20,7 @@ type ctxValues struct {
 	accountID  string
 	idtyAcctID string
 	idtyUserID string
+	username   string
 	groups     []string
 	aud        string
 	service    string
@@ -58,6 +59,12 @@ func WithJWTIdentityAccountID(ID string) CtxValue {
 func WithJWTIdentityUserID(ID string) CtxValue {
 	return func(vals *ctxValues) {
 		vals.idtyUserID = ID
+	}
+}
+
+func WithJWTUsername(name string) CtxValue {
+	return func(vals *ctxValues) {
+		vals.username = name
 	}
 }
 
@@ -116,6 +123,7 @@ func BuildCtx(log *logrus.Logger, ctxVals ...CtxValue) context.Context {
 	claims["groups"] = vals.groups
 	claims["identity_account_id"] = vals.idtyAcctID
 	claims["identity_user_id"] = vals.idtyUserID
+	claims["username"] = vals.username
 	claims["aud"] = vals.aud
 	claims["service"] = vals.service
 	claims["exp"] = vals.expiresAt
