@@ -49,7 +49,7 @@ func startOPA(config *Config) (*sdk.OPA, error) {
 			}
 		}()
 	default:
-		return nil, fmt.Errorf("failed to cast to *bundle.Plugin, received type: %T", p)
+		return nil, fmt.Errorf("failed to cast OPA plugin to *bundle.Plugin type, received: %T", p)
 	}
 
 	return opa, nil

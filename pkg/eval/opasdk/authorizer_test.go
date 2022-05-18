@@ -32,17 +32,6 @@ type EmptyObj struct {
 	Obj string `json:"obj,omitempty"`
 }
 
-type AuthorizeStruct struct {
-	name       string
-	ctx        context.Context
-	cfg        *Config
-	fullMethod string
-	wantRes    ResultMap
-	wantErr    bool
-}
-
-var result interface{}
-
 // sdk % go test -bench=Autorizer_Authorize -benchtime=10s -run=dontrunanytests -benchmem
 //ToDo: Benchmark parallel executions
 func BenchmarkAutorizer_Authorize(b *testing.B) {
@@ -54,14 +43,14 @@ func BenchmarkAutorizer_Authorize(b *testing.B) {
 		acctEntitlementsApi:  DefaultAcctEntitlementsApiPath,
 		logger:               logrus.New(),
 		opaConfig: opaConfig{
-			decisionPath:        "TODO",
-			defaultDecisionPath: DefaultDecisionPath,
-			bundleResourcePath:  "TODO",
-			serviceURL:          "TODO",
-			serviceCredToken:    "",
-			persistBundle:       false,
-			persistDir:          "",
-			opaConfigBuf:        nil,
+			decisionPath:              "TODO",
+			defaultDecisionPath:       DefaultDecisionPath,
+			bundleResourcePath:        "TODO",
+			serviceURL:                "TODO",
+			serviceCredToken:          "",
+			persistBundle:             false,
+			persistDir:                "",
+			opaConfigBuf:              nil,
 			pollingMinDelaySeconds:    60,
 			pollingMaxDelaySeconds:    120,
 			pollingLongTimeoutSeconds: 10,
@@ -132,7 +121,7 @@ func BenchmarkAutorizer_Authorize(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		res, _ = a.Authorize(tt.ctx, input)
 	}
-	result = res
+	_ = res
 }
 
 func Test_autorizer_Authorize(t *testing.T) {
