@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
@@ -100,14 +101,21 @@ func WithLogger(logger *logrus.Logger) Option {
 	}
 }
 
+func WithBundleReloadInterval(interval time.Duration) Option {
+	return func(c *OptHub) {
+		c.bundleReloadInterval = interval
+	}
+}
+
 func dumpOptConfig(log *logrus.Logger, opthub *OptHub, inYAML bool) {
 	opts := map[string]interface{}{
-		"loggingLevel":        opthub.logger.GetLevel().String(),
-		"applicaton":          opthub.applicaton,
-		"decisionPath":        opthub.decisionPath,
-		"bundleResourcePath":  opthub.bundleResourcePath,
-		"entitledServices":    opthub.entitledServices,
-		"acctEntitlementsApi": opthub.acctEntitlementsApi,
+		"loggingLevel":         opthub.logger.GetLevel().String(),
+		"applicaton":           opthub.applicaton,
+		"decisionPath":         opthub.decisionPath,
+		"bundleResourcePath":   opthub.bundleResourcePath,
+		"entitledServices":     opthub.entitledServices,
+		"acctEntitlementsApi":  opthub.acctEntitlementsApi,
+		"bundleReloadInterval": fmt.Sprintf("%s", opthub.bundleReloadInterval),
 	}
 
 	for i, a := range opthub.Authorizers {

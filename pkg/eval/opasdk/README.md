@@ -11,6 +11,7 @@
         opasdk.WithLogger(logger),
         opasdk.WithBundleResourcePath("/bundle/bundle.tar.gz"),
         opasdk.WithDecisionPath("/authz/rbac/validate_v1"),
+        opasdk.WithBundleReloadInterval(time.Minute),
 	))
 ```
 

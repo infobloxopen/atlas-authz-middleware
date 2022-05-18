@@ -3,6 +3,7 @@ package opasdk
 import (
 	"bytes"
 	"encoding/json"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
@@ -14,6 +15,7 @@ const (
 	DefaultDecisionPath            = "/authz/rbac/validate_v1"
 	DefaultBundleResourcePath      = "/bundle/bundle.tar.gz"
 	DefaultLoggingLevel            = logrus.InfoLevel
+	DefaultBundleReloadInterval    = time.Minute
 )
 
 type Config struct {
@@ -44,6 +46,7 @@ type opaConfig struct {
 	pollingMaxDelaySeconds    int
 	pollingLongTimeoutSeconds int
 	opaConfigBuf              *bytes.Buffer
+	bundleReloadInterval      time.Duration
 }
 
 type Service struct {

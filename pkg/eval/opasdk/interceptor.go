@@ -33,6 +33,7 @@ func UnaryServerInterceptor(opts ...Option) grpc.UnaryServerInterceptor {
 	opthub.decisionPath = DefaultDecisionPath
 	opthub.logger = logrus.New()
 	opthub.logger.SetLevel(DefaultLoggingLevel)
+	opthub.bundleReloadInterval = DefaultBundleReloadInterval
 
 	for _, opt := range opts {
 		opt(opthub)

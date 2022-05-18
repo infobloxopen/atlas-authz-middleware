@@ -41,7 +41,8 @@ func startOPA(config *Config) (*sdk.OPA, error) {
 	switch p := opa.Plugin("bundle").(type) {
 	case *bundle.Plugin:
 		go func() {
-			for range time.Tick(30 * time.Second) {
+			config.logger.Infof("Starting bundle reload every %s", config.bundleReloadInterval)
+			for range time.Tick(config.bundleReloadInterval) {
 				p.Trigger(ctx)
 			}
 		}()
