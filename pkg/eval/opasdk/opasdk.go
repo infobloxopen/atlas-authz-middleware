@@ -2,7 +2,11 @@ package opasdk
 
 import (
 	"context"
+	"fmt"
+	"time"
+
 	"github.com/open-policy-agent/opa/logging"
+	"github.com/open-policy-agent/opa/plugins/bundle"
 	"github.com/open-policy-agent/opa/sdk"
 	"github.com/sirupsen/logrus"
 )
@@ -24,5 +28,26 @@ func startOPA(config *Config) (*sdk.OPA, error) {
 	opaLogger := logging.New()
 	opaLogger.SetLevel(opaLogLevel)
 
-	return sdk.New(context.Background(), sdk.Options{Config: config.opaConfigBuf, Logger: opaLogger})
+	// options
+	cfg := config.opaConfigBuf
+	log := opaLogger
+	ctx := context.Background()
+
+	opa, err := sdk.New(ctx, sdk.Options{Config: cfg, Plugins: nil, Logger: log})
+	if err != nil {
+		return nil, fmt.Errorf("OPA initialization error: %v", err)
+	}
+
+	switch p := opa.Plugin("bundle").(type) {
+	case *bundle.Plugin:
+		go func() {
+			for range time.Tick(30 * time.Second) {
+				p.Trigger(ctx)
+			}
+		}()
+	default:
+		return nil, fmt.Errorf("failed to cast to *bundle.Plugin, received type: %T", p)
+	}
+
+	return opa, nil
 }

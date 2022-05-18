@@ -61,6 +61,16 @@ type Bundle struct {
 	Trigger  string   `json:"trigger,omitempty"`
 }
 
+type Discovery struct {
+	Name     string   `json:"name,omitempty"`
+	Decision string   `json:"decision,omitempty"`
+	Service  string   `json:"service,omitempty"`
+	Resource string   `json:"resource,omitempty"`
+	Polling  *Polling `json:"polling,omitempty"`
+	Signing  *Signing `json:"signing,omitempty"`
+	Trigger  string   `json:"trigger,omitempty"`
+}
+
 type Polling struct {
 	MinDelaySeconds    int `json:"min_delay_seconds,omitempty"`
 	MaxDelaySeconds    int `json:"max_delay_seconds,omitempty"`
@@ -72,8 +82,9 @@ type Reporting struct {
 	MaxDelaySeconds int `json:"max_delay_seconds,omitempty"`
 }
 type Signing struct {
-	Keyid string `json:"keyid,omitempty"`
-	Scope string `json:"scope,omitempty"`
+	Keyid   string   `json:"keyid,omitempty"`
+	Scope   string   `json:"scope,omitempty"`
+	Exclude []string `json:"exclude_files,omitempty"`
 }
 
 type DecisionLogs struct {
@@ -87,12 +98,14 @@ type OPAConfig struct {
 	Services             map[string]Service `json:"services,omitempty"`
 	Labels               map[string]string  `json:"labels,omitempty"`
 	Bundles              map[string]Bundle  `json:"bundles,omitempty"`
+	Discovery            *Discovery         `json:"discovery,omitempty"`
 	DecisionLogs         *DecisionLogs      `json:"decision_logs,omitempty"`
 	DefaultDecision      string             `json:"default_decision,omitempty"`
 	PersistenceDirectory string             `json:"persistence_directory,omitempty"`
 }
 
 // createOPAConfigBuf ...
+// https://github.com/open-policy-agent/opa/blob/main/config/config.go
 // https://www.openpolicyagent.org/docs/latest/configuration/
 // https://github.com/michaelboulton/opa-test/tree/a3cb64f6d8dbaa633e2581e853222025d26c6014/pkg/opa
 func createOPAConfigBuf(cfg *opaConfig, log *logrus.Logger) *bytes.Buffer {
@@ -122,6 +135,19 @@ func createOPAConfigBuf(cfg *opaConfig, log *logrus.Logger) *bytes.Buffer {
 				Trigger: "periodic",
 			},
 		},
+		//Discovery: &Discovery{
+		//	Name:     "authz",
+		//	Service:  "authz",
+		//	Resource: cfg.bundleResourcePath,
+		//	Decision: DefaultDecisionPath,
+		//	Polling: &Polling{
+		//		MinDelaySeconds:    cfg.pollingMinDelaySeconds,
+		//		MaxDelaySeconds:    cfg.pollingMaxDelaySeconds,
+		//		LongPollTimeoutSec: cfg.pollingLongTimeoutSeconds,
+		//	},
+		//	Signing: nil,
+		//	Trigger: "periodic",
+		//},
 		DecisionLogs: &DecisionLogs{
 			//service should be omitted if we don't want to upload logs
 			//Service: "authz",
