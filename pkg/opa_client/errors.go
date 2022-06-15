@@ -10,7 +10,7 @@ import (
 
 var (
 	// Opaque errors to reveal less details in upstream client
-	ErrServiceUnavailable = types.NewErrorV1("SeviceUnavailable", "connection refused")
+	ErrServiceUnavailable = types.NewErrorV1("ServiceUnavailable", "connection refused")
 	ErrUnknown            = types.NewErrorV1("Unknown", "unknown error")
 )
 
