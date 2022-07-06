@@ -23,11 +23,14 @@ var (
 
 type key string
 
-// UnaryServerInterceptor returns a new unary client interceptor that optionally logs the execution of external gRPC calls.
-func UnaryServerInterceptor(application string, opts ...Option) grpc.UnaryServerInterceptor {
+// NewDefaultConfig returns a new default Config.
+// If WithAuthorizer() option is not specified,
+// then a new DefaultAuthorizer is used.
+func NewDefaultConfig(application string, opts ...Option) *Config {
 	cfg := &Config{
 		address: opa_client.DefaultAddress,
 	}
+
 	for _, opt := range opts {
 		opt(cfg)
 	}
@@ -36,6 +39,13 @@ func UnaryServerInterceptor(application string, opts ...Option) grpc.UnaryServer
 		logrus.Info("authorizers empty, using default authorizer")
 		cfg.authorizer = []Authorizer{NewDefaultAuthorizer(application, opts...)}
 	}
+
+	return cfg
+}
+
+// UnaryServerInterceptor returns a new unary client interceptor that optionally logs the execution of external gRPC calls.
+func UnaryServerInterceptor(application string, opts ...Option) grpc.UnaryServerInterceptor {
+	cfg := NewDefaultConfig(application, opts...)
 
 	return func(ctx context.Context, grpcReq interface{}, info *grpc.UnaryServerInfo, grpcUnaryHandler grpc.UnaryHandler) (interface{}, error) {
 		logger := ctxlogrus.Extract(ctx)
@@ -72,20 +82,7 @@ func UnaryServerInterceptor(application string, opts ...Option) grpc.UnaryServer
 
 // StreamServerInterceptor returns a new Stream client interceptor that optionally logs the execution of external gRPC calls.
 func StreamServerInterceptor(application string, opts ...Option) grpc.StreamServerInterceptor {
-
-	cfg := &Config{
-		address: opa_client.DefaultAddress,
-	}
-	for _, opt := range opts {
-		opt(cfg)
-	}
-
-	if cfg.authorizer == nil {
-		cfg.authorizer = []Authorizer{&DefaultAuthorizer{
-			clienter:    opa_client.New(cfg.address, opa_client.WithHTTPClient(cfg.httpCli)),
-			application: application,
-		}}
-	}
+	cfg := NewDefaultConfig(application, opts...)
 
 	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, grpcStreamHandler grpc.StreamHandler) error {
 		logger := ctxlogrus.Extract(stream.Context())

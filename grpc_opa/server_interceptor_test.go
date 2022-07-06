@@ -110,7 +110,7 @@ func (m *mockAuthorizer) Evaluate(ctx context.Context, fullMethod string, grpcRe
 	return m.evaluate(ctx, fullMethod, grpcReq, opaEvaluator)
 }
 
-func TestStreamServerInterceptor(t *testing.T) {
+func TestStreamServerInterceptorMockAuthorizer(t *testing.T) {
 	grpcStreamHandler := func(srv interface{}, stream grpc.ServerStream) error {
 		return nil
 	}
@@ -336,6 +336,60 @@ func TestDecisionInput(t *testing.T) {
 			if !gotExpectedErrLogMsg {
 				t.Errorf("%d: Did not get logrus.Entry.Message: `%s`", nth, tm.errLogMsg)
 			}
+		}
+	}
+}
+
+func TestStreamServerInterceptorMockOpaClient(t *testing.T) {
+	testMap := []struct {
+		regoRespJSON string
+		expErr       error
+	}{
+		{
+			regoRespJSON: `{"allow": false, "obligations": {}}`,
+			expErr:       ErrForbidden,
+		},
+		{
+			regoRespJSON: `{"allow": true, "obligations": {}}`,
+			expErr:       nil,
+		},
+		{
+			regoRespJSON: `invalid json result`,
+			expErr:       opa_client.ErrUnknown,
+		},
+	}
+
+	stdLoggr := logrus.StandardLogger()
+	ctx := context.WithValue(context.Background(), utils_test.TestingTContextKey, t)
+	ctx = ctxlogrus.ToContext(ctx, logrus.NewEntry(stdLoggr))
+
+	srvStream := WrappedSrvStream{
+		WrappedCtx: ctx,
+	}
+
+	grpcStreamHandler := func(srv interface{}, stream grpc.ServerStream) error {
+		return nil
+	}
+
+	for idx, tm := range testMap {
+		mockOpaClienter := MockOpaClienter{
+			Loggr:        stdLoggr,
+			RegoRespJSON: tm.regoRespJSON,
+		}
+		interceptor := StreamServerInterceptor("app",
+			WithOpaClienter(mockOpaClienter),
+			WithClaimsVerifier(NullClaimsVerifier),
+		)
+
+		gotErr := interceptor(ctx, &srvStream,
+			&grpc.StreamServerInfo{FullMethod: "FakeMethod"},
+			grpcStreamHandler)
+		t.Logf("%d: gotErr=%s", idx, gotErr)
+
+		if (tm.expErr == nil) && gotErr != nil {
+			t.Errorf("%d: expErr=nil, gotErr=%s", idx, gotErr)
+		} else if (tm.expErr != nil) && (tm.expErr != gotErr) {
+			t.Errorf("%d: expErr=%s, gotErr=%s", idx, tm.expErr, gotErr)
 		}
 	}
 }
