@@ -422,9 +422,102 @@ func TestDebugLogging(t *testing.T) {
 	}
 }
 
+func TestInputPayload(t *testing.T) {
+	stdLoggr := logrus.StandardLogger()
+	ctx := context.WithValue(context.Background(), utils_test.TestingTContextKey, t)
+	ctx = ctxlogrus.ToContext(ctx, logrus.NewEntry(stdLoggr))
+
+	newMockOpaClienterFn := func(expectInputJSON string) *MockOpaClienter {
+		return &MockOpaClienter{
+			Loggr:        stdLoggr,
+			RegoRespJSON: `{"allow": true}`,
+			VerifyInput:     true,
+			ExpectInputJSON: expectInputJSON,
+		}
+	}
+
+	testMap := []struct {
+		name   string
+		authzr *DefaultAuthorizer
+	}{
+		{
+			name:   `no-options`,
+			authzr: NewDefaultAuthorizer("fakeapp",
+				WithClaimsVerifier(NullClaimsVerifier),
+				WithOpaClienter(newMockOpaClienterFn(`{
+					"endpoint": "FakeMethod",
+					"application": "fakeapp",
+					"full_method": "FakeMethod",
+					"jwt": "redacted",
+					"request_id": "no-request-uuid",
+					"entitled_services": null,
+					"type": "",
+					"verb": "",
+					"ctx": null
+				}`)),
+			),
+		},
+		{
+			name:   `with-one-extra-input-field`,
+			authzr: NewDefaultAuthorizer("fakeapp",
+				WithClaimsVerifier(NullClaimsVerifier),
+				WithExtraInputField("my extra field 1", "my extra value 1"),
+				WithOpaClienter(newMockOpaClienterFn(`{
+					"endpoint": "FakeMethod",
+					"application": "fakeapp",
+					"full_method": "FakeMethod",
+					"jwt": "redacted",
+					"request_id": "no-request-uuid",
+					"entitled_services": null,
+					"type": "",
+					"verb": "",
+					"ctx": null,
+					"extra": {
+						"my extra field 1": "my extra value 1"
+					}
+				}`)),
+			),
+		},
+		{
+			name:   `with-mult-extra-input-field`,
+			authzr: NewDefaultAuthorizer("fakeapp",
+				WithClaimsVerifier(NullClaimsVerifier),
+				WithExtraInputField("my extra field 1", "my extra value 1"),
+				WithExtraInputField("my extra field 2", true),
+				WithExtraInputField("my extra field 3", 123),
+				WithOpaClienter(newMockOpaClienterFn(`{
+					"endpoint": "FakeMethod",
+					"application": "fakeapp",
+					"full_method": "FakeMethod",
+					"jwt": "redacted",
+					"request_id": "no-request-uuid",
+					"entitled_services": null,
+					"type": "",
+					"verb": "",
+					"ctx": null,
+					"extra": {
+						"my extra field 1": "my extra value 1",
+						"my extra field 2": true,
+						"my extra field 3": 123
+					}
+				}`)),
+			),
+		},
+	}
+
+	for nth, tm := range testMap {
+		tcCtx := context.WithValue(ctx, utils_test.TestCaseIndexContextKey, nth)
+		tcCtx = context.WithValue(tcCtx, utils_test.TestCaseNameContextKey, tm.name)
+		tm.authzr.AffirmAuthorization(tcCtx, "FakeMethod", nil)
+	}
+}
+
 type MockOpaClienter struct {
 	Loggr        *logrus.Logger
 	RegoRespJSON string
+
+	VerifyInput     bool
+	ExpectInputJSON string
 }
 
 func (m MockOpaClienter) String() string {
@@ -452,6 +545,33 @@ func (m MockOpaClienter) CustomQueryBytes(ctx context.Context, document string, 
 }
 
 func (m MockOpaClienter) CustomQuery(ctx context.Context, document string, reqData, resp interface{}) error {
+	if m.VerifyInput {
+		t, _ := ctx.Value(utils_test.TestingTContextKey).(*testing.T)
+		tcIdx, _ := ctx.Value(utils_test.TestCaseIndexContextKey).(int)
+		tcName, _ := ctx.Value(utils_test.TestCaseNameContextKey).(string)
+		payload, _ := reqData.(Payload)
+		payloadJSON, _ := json.MarshalIndent(payload, "", "  ")
+		t.Logf("%d: %s: payload=%#v", tcIdx, tcName, payload)
+		actualInput := map[string]interface{}{}
+		expectInput := map[string]interface{}{}
+		err := json.Unmarshal(payloadJSON, &actualInput)
+		if err != nil {
+			t.Errorf("%d: %s: FAIL: json.Unmarshal err=%s\npayloadJSON=%s",
+				tcIdx, tcName, err, string(payloadJSON))
+		}
+		err = json.Unmarshal([]byte(m.ExpectInputJSON), &expectInput)
+		if err != nil {
+			t.Errorf("%d: %s: FAIL: json.Unmarshal err=%s\nExpectInputJSON=%s",
+				tcIdx, tcName, err, m.ExpectInputJSON)
+		}
+		if !reflect.DeepEqual(actualInput, expectInput) {
+			t.Errorf("%d: %s: FAIL:\npayloadJSON=%s\nExpectInputJSON=%s",
+				tcIdx, tcName, string(payloadJSON), m.ExpectInputJSON)
+			t.Errorf("%d: %s: FAIL:\nactualInput=%#v\nexpectInput=%#v",
+				tcIdx, tcName, actualInput, expectInput)
+		}
+	}
+
 	err := json.Unmarshal([]byte(m.RegoRespJSON), resp)
 	m.Loggr.Debugf("CustomQuery: resp=%#v", resp)
 	return err
