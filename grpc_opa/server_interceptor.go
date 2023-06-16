@@ -35,9 +35,13 @@ func NewDefaultConfig(application string, opts ...Option) *Config {
 		opt(cfg)
 	}
 
+	opts = append([]Option{WithOpaClienter(opa_client.New(cfg.address, opa_client.WithHTTPClient(cfg.httpCli)))}, opts...)
+
+	authorizer := NewDefaultAuthorizer(application, opts...)
+
 	if cfg.authorizer == nil {
 		logrus.Info("authorizers empty, using default authorizer")
-		cfg.authorizer = []Authorizer{NewDefaultAuthorizer(application, opts...)}
+		cfg.authorizer = []Authorizer{authorizer}
 	}
 
 	return cfg
