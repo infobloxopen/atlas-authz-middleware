@@ -5,8 +5,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/grpc-ecosystem/go-grpc-middleware/util/metautils"
+	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v3/docker"
+	"google.golang.org/grpc/metadata"
 	"io/ioutil"
+	"log"
+	"net/http"
+	"os"
 	"reflect"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -17,6 +26,125 @@ import (
 	logrus "github.com/sirupsen/logrus"
 	logrustesthook "github.com/sirupsen/logrus/hooks/test"
 )
+
+var result context.Context
+
+type MyDecisionInputr struct {
+	DecisionInput
+}
+
+func (d MyDecisionInputr) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*DecisionInput, error) {
+	return &d.DecisionInput, nil
+}
+
+func TestMain(m *testing.M) {
+	// uses a sensible default on windows (tcp/http) and linux/osx (socket)
+	pool, err := dockertest.NewPool("")
+	if err != nil {
+		log.Fatalf("Could not connect to docker: %s", err)
+	}
+
+	// pulls an image, creates a container based on it and runs it. pool.Run OR pool.RunWithOptions
+	// resource, err := pool.Run("openpolicyagent/opa", "latest", []string{"--server"})
+	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
+		Repository:   "openpolicyagent/opa",
+		Tag:          "0.40.0",
+		ExposedPorts: []string{"8181"},
+		PortBindings: map[docker.Port][]docker.PortBinding{
+			"8181": {
+				{HostIP: "0.0.0.0", HostPort: strconv.Itoa(8181)},
+			},
+		},
+		Mounts: []string{"/Users/jdaripineni/go/src/github.com/Infoblox-CTO/atlas-authz-middleware:/atlas-authz-middleware"},
+		Cmd:    []string{"run", "--server", "--bundle", "/atlas-authz-middleware/pkg/eval/sdk/data_test/bundle.tar.gz"},
+	}, func(config *docker.HostConfig) {
+		// set AutoRemove to true so that stopped container goes away by itself
+		config.AutoRemove = true
+		config.RestartPolicy = docker.RestartPolicy{
+			Name: "no",
+		}
+	})
+
+	if err != nil {
+		log.Fatalf("Could not start resource: %s", err)
+	}
+
+	// exponential backoff-retry, because the application in the container might not be ready to accept connections yet
+	if err := pool.Retry(func() error {
+		var err error
+		resp, err := http.Get("http://localhost:8181")
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+		return nil
+	}); err != nil {
+		log.Fatalf("Could not ping OPA: %s", err)
+	}
+
+	code := m.Run()
+
+	// You can't defer this because os.Exit doesn't care for defer
+	if err := pool.Purge(resource); err != nil {
+		log.Fatalf("Could not purge resource: %s", err)
+	}
+
+	os.Exit(code)
+}
+
+// Prerequisite: OPA service must be running @ localhost:8181.
+// For OPA service, use dockertest (runs from TestMain above) OR run it as standalone service as shown below (opa run).
+// Run the OPA service locally: opa run -s pkg/eval/sdk/data_test/bundle.tar.gz
+// Run benchmark:
+// grpc_opa % go test -bench=DefaultAuthorizer_AffirmAuthorization -benchtime=10s -run=dontrunanytests -benchmem
+func BenchmarkDefaultAuthorizer_AffirmAuthorization(b *testing.B) {
+	ctx, cancelCtxFn := context.WithCancel(context.Background())
+	defer func() {
+		cancelCtxFn()
+	}()
+
+	decisionDoc := "v1/data/authz/rbac/validate_v1"
+	app := "atlas.tagging"
+	fullMethod := "TagService.List"
+	jwt := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2NvdW50X2lkIjoiMTA3MyIsImF1ZCI6ImliLWN0ayIsImdyb3VwcyI6WyJhY3RfYWRtaW4iLCJ1c2VyIiwiaWItYWNjZXNzLWNvbnRyb2wtYWRtaW4iLCJpYi10ZC1hZG1pbiIsInJiLWdyb3VwLXRlc3QtMDAxMSIsImJvb3RzdHJhcC10ZXN0LWdyb3VwIiwiaWItZGRpLWFkbWluIiwiaWItaW50ZXJhY3RpdmUtdXNlciJdLCJpZGVudGl0eV9hY2NvdW50X2lkIjoiYTJkYjQxYWQtMzgzMC00OTVkLWJhMDctMDAwMDAwMDAxMDczIiwiaWRlbnRpdHlfdXNlcl9pZCI6IiIsInNlcnZpY2UiOiIifQ.KbxFNY_VyYB4W97BJQT8VK_qHvcuku_deg_wDpPoG9g"
+
+	opaIpPort := "http://localhost:8181"
+
+	// Ensure fullMethod is in GRPC fullMethod format acceptable by middleware
+	if matched, _ := regexp.MatchString(`^[[:alnum:]]+\.[[:alnum:]]+$`, fullMethod); matched {
+		fullMethod = strings.Replace(fullMethod, `.`, `/`, -1)
+		fullMethod = `/service.` + fullMethod
+	}
+
+	// Middleware will add `/` prefix to decisionDoc document, so remove it
+	decisionDoc = strings.TrimPrefix(decisionDoc, `/`)
+
+	// From https://github.com/grpc-ecosystem/go-grpc-middleware/blob/master/auth/metadata_test.go
+	bearer := fmt.Sprintf(`bearer %s`, jwt)
+	md := metadata.Pairs(`authorization`, bearer)
+	ctx = metautils.NiceMD(md).ToIncoming(ctx)
+
+	var decInputr MyDecisionInputr
+	decInputr.DecisionInput.DecisionDocument = decisionDoc
+
+	authzr := NewDefaultAuthorizer(app,
+		WithAddress(opaIpPort),
+		WithDecisionInputHandler(&decInputr),
+	)
+
+	var resultCtx context.Context
+	var actualErr error
+	for i := 0; i < b.N; i++ {
+		resultCtx, actualErr = authzr.AffirmAuthorization(ctx, fullMethod, nil)
+
+		if actualErr != nil {
+			b.Errorf("AffirmAuthorization(explicit) FAIL: unexpected DENY, err=%#v", actualErr)
+		}
+	}
+	// Store result to a package level variable so compiler cannot eliminate benchmark.
+	result = resultCtx
+
+}
 
 func TestRedactJWT(t *testing.T) {
 	token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"

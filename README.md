@@ -44,3 +44,11 @@ authzOpaInterceptor := opamw.UnaryServerInterceptor(
 
 interceptors = append(interceptors, authzOpaInterceptor)
 ```
+
+# Refs
+
+###### OPA (Open Policy Agent)
+- [OPA Documentation](https://www.openpolicyagent.org/docs/latest/)
+
+######  Docs
+- [AuthZ FL](https://docs.google.com/document/d/1QfnK0MTaDA-eHifxZyR8DVwEm8ao20Ikd_MrlhCO9rc/edit#)
