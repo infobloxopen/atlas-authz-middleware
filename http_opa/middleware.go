@@ -28,24 +28,20 @@ func AuthzMiddleware(application string, opts ...grpc_opa_middleware.Option) fun
 				ok, _, err = auther.Evaluate(ctx, getVerbAndEndpointHTTP(r), nil, auther.OpaQuery)
 				if err != nil {
 					logger.WithError(err).WithField("authorizer", auther).Error("unable_authorize")
-					http.Error(w, "unable to authorize", http.StatusForbidden)
-					return
 				}
 				if ok {
 					break
 				}
 			}
-			if err != nil {
-				logger.WithError(err).Error("unable_authorize")
+			if err != nil || !ok {
+				if err == nil {
+					err = opa_client.ErrUndefined
+				}
+				logger.WithError(err).Error("policy engine returned an error")
 				http.Error(w, "unable to authorize", http.StatusForbidden)
 				return
 			}
 
-			if !ok {
-				logger.WithError(opa_client.ErrUndefined).Error("policy engine returned undefined response")
-				http.Error(w, "unable to authorize", http.StatusForbidden)
-				return
-			}
 			next.ServeHTTP(w, r)
 
 		})

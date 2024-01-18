@@ -178,7 +178,8 @@ func (c Config) GetAuthorizer() []Authorizer {
 
 type ClaimsVerifier func([]string, []string) (string, []error)
 
-// 	FullMethod is the full RPC method string, i.e., /package.service/method.
+//	FullMethod is the full RPC method string, i.e., /package.service/method.
+//
 // e.g. fullmethod:  /service.TagService/ListRetiredTags PARGs endpoint: TagService.ListRetiredTags
 func parseEndpoint(fullMethod string) string {
 	byPackage := strings.Split(fullMethod, ".")
