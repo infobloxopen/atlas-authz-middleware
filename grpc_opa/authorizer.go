@@ -172,6 +172,10 @@ type Config struct {
 	acctEntitlementsApi  string
 }
 
+func (c Config) GetAuthorizer() []Authorizer {
+	return c.authorizer
+}
+
 type ClaimsVerifier func([]string, []string) (string, []error)
 
 // 	FullMethod is the full RPC method string, i.e., /package.service/method.
