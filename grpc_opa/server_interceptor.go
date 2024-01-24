@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
+	az "github.com/infobloxopen/atlas-authz-middleware/common/authorizer"
 )
 
 const (
@@ -41,7 +42,7 @@ func NewDefaultConfig(application string, opts ...Option) *Config {
 
 	if cfg.authorizer == nil {
 		logrus.Info("authorizers empty, using default authorizer")
-		cfg.authorizer = []Authorizer{authorizer}
+		cfg.authorizer = []az.Authorizer{authorizer}
 	}
 
 	return cfg

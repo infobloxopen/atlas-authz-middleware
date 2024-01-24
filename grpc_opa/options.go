@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
+	az "github.com/infobloxopen/atlas-authz-middleware/common/authorizer"
 )
 
 type Option func(c *Config)
@@ -36,7 +37,7 @@ func WithOpaClienter(clienter opa_client.Clienter) Option {
 
 // WithOpaEvaluator overrides the OpaEvaluator use to
 // evaluate authorization against OPA.
-func WithOpaEvaluator(opaEvaluator OpaEvaluator) Option {
+func WithOpaEvaluator(opaEvaluator az.OpaEvaluator) Option {
 	return func(c *Config) {
 		c.opaEvaluator = opaEvaluator
 	}
@@ -44,7 +45,7 @@ func WithOpaEvaluator(opaEvaluator OpaEvaluator) Option {
 
 // WithAuthorizer overrides the request/response
 // processing of OPA. Multiple authorizers can be passed
-func WithAuthorizer(auther ...Authorizer) Option {
+func WithAuthorizer(auther ...az.Authorizer) Option {
 	return func(c *Config) {
 		c.authorizer = auther
 	}
@@ -53,14 +54,14 @@ func WithAuthorizer(auther ...Authorizer) Option {
 // WithDecisionInputHandler supplies optional DecisionInputHandler
 // for DefaultAuthorizer to obtain additional input for OPA
 // ABAC decision processing.
-func WithDecisionInputHandler(decisionHandler DecisionInputHandler) Option {
+func WithDecisionInputHandler(decisionHandler az.DecisionInputHandler) Option {
 	return func(c *Config) {
 		c.decisionInputHandler = decisionHandler
 	}
 }
 
 // WithClaimsVerifier overrides default ClaimsVerifier
-func WithClaimsVerifier(claimsVerifier ClaimsVerifier) Option {
+func WithClaimsVerifier(claimsVerifier az.ClaimsVerifier) Option {
 	return func(c *Config) {
 		c.claimsVerifier = claimsVerifier
 	}

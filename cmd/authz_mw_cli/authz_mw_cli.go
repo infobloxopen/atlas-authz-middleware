@@ -22,6 +22,7 @@ import (
 
 	logrus "github.com/sirupsen/logrus"
 
+	az "github.com/infobloxopen/atlas-authz-middleware/common/authorizer"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -139,9 +140,9 @@ func acct_entitlements(ctx context.Context, opaIpPort string) {
 }
 
 type MyDecisionInputr struct {
-	opamw.DecisionInput
+	az.DecisionInput
 }
 
-func (d MyDecisionInputr) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*opamw.DecisionInput, error) {
+func (d MyDecisionInputr) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*az.DecisionInput, error) {
 	return &d.DecisionInput, nil
 }

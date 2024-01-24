@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/infobloxopen/atlas-authz-middleware/common/opautil"
 	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
 	"github.com/infobloxopen/atlas-authz-middleware/utils_test"
 
@@ -89,11 +90,11 @@ func TestGetAcctEntitlementsOpa(t *testing.T) {
 			actualAcctResult.Result, expectAcctResult.Result)
 	}
 
-	var actualOpaResp OPAResponse
+	var actualOpaResp opautil.OPAResponse
 	err = json.Unmarshal(rawBytes, &actualOpaResp)
 	t.Logf("actualOpaResp=%#v", actualOpaResp)
 
-	expectOpaResp := OPAResponse{
+	expectOpaResp := opautil.OPAResponse{
 		"result": map[string]interface{}{
 			"2001016": map[string]interface{}{
 				"environment": []interface{}{"ac", "heated-seats"},

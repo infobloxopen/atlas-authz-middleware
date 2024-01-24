@@ -5,12 +5,8 @@ import (
 	"fmt"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
+	"github.com/infobloxopen/atlas-authz-middleware/common/opautil"
 	logrus "github.com/sirupsen/logrus"
-)
-
-const (
-	// DefaultAcctEntitlementsApiPath is default OPA path to fetch acct entitlements
-	DefaultAcctEntitlementsApiPath = "v1/data/authz/rbac/acct_entitlements_api"
 )
 
 // AcctEntitlementsApiInput is the input payload for acct_entitlements_api
@@ -43,7 +39,7 @@ func (a *DefaultAuthorizer) GetAcctEntitlementsBytes(ctx context.Context, accoun
 		serviceNames = []string{}
 	}
 
-	opaReq := OPARequest{
+	opaReq := opautil.OPARequest{
 		Input: &AcctEntitlementsApiInput{
 			AccountIDs:   accountIDs,
 			ServiceNames: serviceNames,
@@ -78,7 +74,7 @@ func (a *DefaultAuthorizer) GetAcctEntitlements(ctx context.Context, accountIDs,
 		serviceNames = []string{}
 	}
 
-	opaReq := OPARequest{
+	opaReq := opautil.OPARequest{
 		Input: &AcctEntitlementsApiInput{
 			AccountIDs:   accountIDs,
 			ServiceNames: serviceNames,

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -14,6 +13,9 @@ import (
 	"github.com/infobloxopen/atlas-authz-middleware/utils_test"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
+	az "github.com/infobloxopen/atlas-authz-middleware/common/authorizer"
+	commonClaim "github.com/infobloxopen/atlas-authz-middleware/common/claim"
+	"github.com/infobloxopen/atlas-authz-middleware/common/opautil"
 	logrus "github.com/sirupsen/logrus"
 	logrustesthook "github.com/sirupsen/logrus/hooks/test"
 )
@@ -21,9 +23,9 @@ import (
 func TestRedactJWT(t *testing.T) {
 	token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
 
-	if redacted := redactJWT(token); !strings.HasSuffix(redacted, REDACTED) {
+	if redacted := opautil.RedactJWT(token); !strings.HasSuffix(redacted, az.REDACTED) {
 
-		t.Errorf("got: %s, wanted: %s", redacted, REDACTED)
+		t.Errorf("got: %s, wanted: %s", redacted, az.REDACTED)
 	}
 }
 
@@ -71,73 +73,6 @@ func Test_parseEndpoint(t *testing.T) {
 		if gotEndpoint != tst.endpoint {
 			t.Errorf("parseEndpoint(%s)='%s', wanted='%s'",
 				tst.fullMethod, gotEndpoint, tst.endpoint)
-		}
-	}
-}
-
-func Test_addObligations(t *testing.T) {
-	for idx, tst := range obligationsNodeTests {
-		ctx := context.Background()
-		var opaResp OPAResponse
-
-		err := json.Unmarshal([]byte(tst.regoRespJSON), &opaResp)
-		if err != nil {
-			t.Errorf("tst#%d: err=%s trying to json.Unmarshal: %s",
-				idx, err, tst.regoRespJSON)
-			continue
-		}
-
-		t.Logf("tst#%d: opaResp=%#v", idx, opaResp)
-		newCtx, actualErr := addObligations(ctx, opaResp)
-
-		if actualErr != tst.expectedErr {
-			t.Errorf("tst#%d: expectedErr=%s actualErr=%s",
-				idx, tst.expectedErr, actualErr)
-		}
-
-		actualVal, _ := newCtx.Value(ObKey).(*ObligationsNode)
-		if actualVal != nil {
-			t.Logf("tst#%d: before DeepSort: %s", idx, actualVal)
-			actualVal.DeepSort()
-		}
-		if !reflect.DeepEqual(actualVal, tst.expectedVal) {
-			// nil interface{} (untyped) does not compare equal with a nil typed value
-			// https://www.calhoun.io/when-nil-isnt-equal-to-nil/
-			// https://stackoverflow.com/questions/13476349/check-for-nil-and-nil-interface-in-go
-			if actualVal != nil || tst.expectedVal != nil {
-				t.Errorf("tst#%d: expectedVal=%s actualVal=%s",
-					idx, tst.expectedVal, actualVal)
-			}
-		}
-	}
-}
-
-func TestOPAResponseObligations(t *testing.T) {
-	for idx, tst := range obligationsNodeTests {
-		var opaResp OPAResponse
-
-		err := json.Unmarshal([]byte(tst.regoRespJSON), &opaResp)
-		if err != nil {
-			t.Errorf("tst#%d: err=%s trying to json.Unmarshal: %s",
-				idx, err, tst.regoRespJSON)
-			continue
-		}
-
-		t.Logf("tst#%d: opaResp=%#v", idx, opaResp)
-		actualVal, actualErr := opaResp.Obligations()
-
-		if actualErr != tst.expectedErr {
-			t.Errorf("tst#%d: expectedErr=%s actualErr=%s",
-				idx, tst.expectedErr, actualErr)
-		}
-
-		if actualVal != nil {
-			t.Logf("tst#%d: before DeepSort: %s", idx, actualVal)
-			actualVal.DeepSort()
-		}
-		if !reflect.DeepEqual(actualVal, tst.expectedVal) {
-			t.Errorf("tst#%d: expectedVal=%s actualVal=%s",
-				idx, tst.expectedVal, actualVal)
 		}
 	}
 }
@@ -210,7 +145,7 @@ func TestAffirmAuthorizationOpa(t *testing.T) {
 		// Test without explicitly set decision document
 		authzr := NewDefaultAuthorizer(tm.application,
 			WithOpaClienter(cli),
-			WithClaimsVerifier(NullClaimsVerifier),
+			WithClaimsVerifier(commonClaim.NullClaimsVerifier),
 		)
 
 		_, actualErr := authzr.AffirmAuthorization(ctx, tm.fullMethod, nil)
@@ -224,7 +159,7 @@ func TestAffirmAuthorizationOpa(t *testing.T) {
 		authzr = NewDefaultAuthorizer(tm.application,
 			WithOpaClienter(cli),
 			WithDecisionInputHandler(&decInputr),
-			WithClaimsVerifier(NullClaimsVerifier),
+			WithClaimsVerifier(commonClaim.NullClaimsVerifier),
 		)
 
 		_, actualErr = authzr.AffirmAuthorization(ctx, tm.fullMethod, nil)
@@ -241,7 +176,7 @@ func TestAffirmAuthorizationMockOpaEvaluator(t *testing.T) {
 
 	testMap := []struct {
 		name        string
-		opaEvaltor  OpaEvaluator
+		opaEvaltor  az.OpaEvaluator
 		expectCtx   bool
 		expectedErr error
 	}{
@@ -293,7 +228,7 @@ func TestAffirmAuthorizationMockOpaEvaluator(t *testing.T) {
 	for nth, tm := range testMap {
 		auther := NewDefaultAuthorizer("app",
 			WithOpaEvaluator(tm.opaEvaltor),
-			WithClaimsVerifier(NullClaimsVerifier),
+			WithClaimsVerifier(commonClaim.NullClaimsVerifier),
 		)
 
 		resultCtx, resultErr := auther.AffirmAuthorization(ctx, "FakeMethod", nil)
@@ -368,7 +303,7 @@ func TestDebugLogging(t *testing.T) {
 		}
 		auther := NewDefaultAuthorizer("app",
 			WithOpaClienter(&mockOpaClienter),
-			WithClaimsVerifier(NullClaimsVerifier),
+			WithClaimsVerifier(commonClaim.NullClaimsVerifier),
 		)
 		loggertesthook.Reset()
 
@@ -458,9 +393,9 @@ func (m MockOpaClienter) CustomQuery(ctx context.Context, document string, reqDa
 }
 
 type MockDecisionInputr struct {
-	DecisionInput
+	az.DecisionInput
 }
 
-func (d MockDecisionInputr) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*DecisionInput, error) {
+func (d MockDecisionInputr) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*az.DecisionInput, error) {
 	return &d.DecisionInput, nil
 }

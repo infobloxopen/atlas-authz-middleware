@@ -1,4 +1,4 @@
-package grpc_opa_middleware
+package opautil
 
 import (
 	"strings"

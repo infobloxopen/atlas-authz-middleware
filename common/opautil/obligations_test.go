@@ -1,4 +1,4 @@
-package grpc_opa_middleware
+package opautil
 
 import (
 	"encoding/json"
@@ -6,7 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/infobloxopen/seal/pkg/compiler/sql"
+	az "github.com/infobloxopen/atlas-authz-middleware/common/authorizer"
+	
+	sqlcompiler "github.com/infobloxopen/seal/pkg/compiler/sql"
 )
 
 func Test_parseOPAObligations(t *testing.T) {
@@ -21,14 +23,14 @@ func Test_parseOPAObligations(t *testing.T) {
 		}
 
 		t.Logf("tst#%d: resp=%#v", idx, resp)
-		if _, ok := resp[string(ObKey)]; !ok {
+		if _, ok := resp[string(az.ObKey)]; !ok {
 			if strings.Contains(tst.regoRespJSON, `"obligations":`) {
 				t.Errorf("tst#%d: FAIL: '%s' key not found in OPAResponse",
-					idx, string(ObKey))
+					idx, string(az.ObKey))
 			}
 			continue
 		}
-		actualVal, actualErr := parseOPAObligations(resp[string(ObKey)])
+		actualVal, actualErr := ParseOPAObligations(resp[string(az.ObKey)])
 
 		if actualErr != tst.expectedErr {
 			t.Errorf("tst#%d: FAIL: expectedErr=%s actualErr=%s",
@@ -77,7 +79,7 @@ var obligationsNodeTests = []struct {
 	expectedSQL  string
 }{
 	{
-		expectedErr:  nil,
+		expectedErr: nil,
 		regoRespJSON: `{
 			"allow": true
 		}`,
@@ -86,7 +88,7 @@ var obligationsNodeTests = []struct {
 		expectedSQL:  ``,
 	},
 	{
-		expectedErr:  ErrInvalidObligations,
+		expectedErr: ErrInvalidObligations,
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": "bad obligations value"
@@ -96,7 +98,7 @@ var obligationsNodeTests = []struct {
 		expectedSQL:  ``,
 	},
 	{
-		expectedErr:  ErrInvalidObligations,
+		expectedErr: ErrInvalidObligations,
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": [ "bad obligations value" ]
@@ -106,7 +108,7 @@ var obligationsNodeTests = []struct {
 		expectedSQL:  ``,
 	},
 	{
-		expectedErr:  ErrInvalidObligations,
+		expectedErr: ErrInvalidObligations,
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": [ [ 3.14 ] ]
@@ -116,7 +118,7 @@ var obligationsNodeTests = []struct {
 		expectedSQL:  ``,
 	},
 	{
-		expectedErr:  ErrInvalidObligations,
+		expectedErr: ErrInvalidObligations,
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": { "abac.policy1_guid": "bad obligations value" }
@@ -126,7 +128,7 @@ var obligationsNodeTests = []struct {
 		expectedSQL:  ``,
 	},
 	{
-		expectedErr:  ErrInvalidObligations,
+		expectedErr: ErrInvalidObligations,
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": { "abac.bad_obligations_value": [ 3.14 ]}
@@ -136,7 +138,7 @@ var obligationsNodeTests = []struct {
 		expectedSQL:  ``,
 	},
 	{
-		expectedErr:  ErrInvalidObligations,
+		expectedErr: ErrInvalidObligations,
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": { "abac.policy1_guid": { "stmt0": "bad obligations value" }}
@@ -146,7 +148,7 @@ var obligationsNodeTests = []struct {
 		expectedSQL:  ``,
 	},
 	{
-		expectedErr:  nil,
+		expectedErr: nil,
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": []
@@ -156,7 +158,7 @@ var obligationsNodeTests = []struct {
 		expectedSQL:  ``,
 	},
 	{
-		expectedErr:  nil,
+		expectedErr: nil,
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": [ [], null, [] ]
@@ -166,19 +168,19 @@ var obligationsNodeTests = []struct {
 		expectedSQL:  ``,
 	},
 	{
-		expectedErr:  nil,
+		expectedErr: nil,
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": [ [], [ "type:ddi.ipam; not ctx.a =~ 1" ] ]
 		}`,
-		expectedVal:  &ObligationsNode{
+		expectedVal: &ObligationsNode{
 			Kind: ObligationsOr,
 			Children: []*ObligationsNode{
 				&ObligationsNode{
 					Kind: ObligationsOr,
 					Children: []*ObligationsNode{
 						&ObligationsNode{
-							Kind: ObligationsCondition,
+							Kind:      ObligationsCondition,
 							Condition: "type:ddi.ipam; not ctx.a =~ 1",
 						},
 					},
@@ -189,19 +191,19 @@ var obligationsNodeTests = []struct {
 		expectedSQL:  `(NOT (ipam.a ~ 1))`,
 	},
 	{
-		expectedErr:  nil,
+		expectedErr: nil,
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": [ [ "ctx.a <= 1", "ctx.b != 2" ], [ "ctx.c >= 3" ] ]
 		}`,
-		expectedVal:  &ObligationsNode{
+		expectedVal: &ObligationsNode{
 			Kind: ObligationsOr,
 			Children: []*ObligationsNode{
 				&ObligationsNode{
 					Kind: ObligationsOr,
 					Children: []*ObligationsNode{
 						&ObligationsNode{
-							Kind: ObligationsCondition,
+							Kind:      ObligationsCondition,
 							Condition: "ctx.c >= 3",
 						},
 					},
@@ -210,11 +212,11 @@ var obligationsNodeTests = []struct {
 					Kind: ObligationsOr,
 					Children: []*ObligationsNode{
 						&ObligationsNode{
-							Kind: ObligationsCondition,
+							Kind:      ObligationsCondition,
 							Condition: "ctx.a <= 1",
 						},
 						&ObligationsNode{
-							Kind: ObligationsCondition,
+							Kind:      ObligationsCondition,
 							Condition: "ctx.b != 2",
 						},
 					},
@@ -225,7 +227,7 @@ var obligationsNodeTests = []struct {
 		expectedSQL:  `((ctx.c >= 3) OR ((ctx.a <= 1) OR (ctx.b != 2)))`,
 	},
 	{
-		expectedErr:  nil,
+		expectedErr: nil,
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": {}
@@ -235,7 +237,7 @@ var obligationsNodeTests = []struct {
 		expectedSQL:  ``,
 	},
 	{
-		expectedErr:  nil,
+		expectedErr: nil,
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": {
@@ -249,7 +251,7 @@ var obligationsNodeTests = []struct {
 		expectedSQL:  ``,
 	},
 	{
-		expectedErr:  nil,
+		expectedErr: nil,
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": {
@@ -264,7 +266,7 @@ var obligationsNodeTests = []struct {
 		expectedSQL:  ``,
 	},
 	{
-		expectedErr:  nil,
+		expectedErr: nil,
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": {
@@ -281,7 +283,7 @@ var obligationsNodeTests = []struct {
 		expectedSQL:  ``,
 	},
 	{
-		expectedErr:  nil,
+		expectedErr: nil,
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": {
@@ -291,23 +293,23 @@ var obligationsNodeTests = []struct {
 				"abac.policy2_guid": {}
 			}
 		}`,
-		expectedVal:  &ObligationsNode{
+		expectedVal: &ObligationsNode{
 			Kind: ObligationsOr,
 			Children: []*ObligationsNode{
 				&ObligationsNode{
 					Kind: ObligationsOr,
-					Tag: "abac.policy1_guid",
+					Tag:  "abac.policy1_guid",
 					Children: []*ObligationsNode{
 						&ObligationsNode{
 							Kind: ObligationsOr,
-							Tag: "stmt0",
+							Tag:  "stmt0",
 							Children: []*ObligationsNode{
 								&ObligationsNode{
-									Kind: ObligationsCondition,
+									Kind:      ObligationsCondition,
 									Condition: "type:ddi.ipam; ctx.i < 1",
 								},
 								&ObligationsNode{
-									Kind: ObligationsCondition,
+									Kind:      ObligationsCondition,
 									Condition: "type:ddi.ipam; ctx.j > 2",
 								},
 							},
@@ -320,7 +322,7 @@ var obligationsNodeTests = []struct {
 		expectedSQL:  `((ipam.i < 1) OR (ipam.j > 2))`,
 	},
 	{
-		expectedErr:  nil,
+		expectedErr: nil,
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": {
@@ -332,27 +334,27 @@ var obligationsNodeTests = []struct {
 				}
 			}
 		}`,
-		expectedVal:  &ObligationsNode{
+		expectedVal: &ObligationsNode{
 			Kind: ObligationsOr,
 			Children: []*ObligationsNode{
 				&ObligationsNode{
 					Kind: ObligationsOr,
-					Tag: "abac.policy1_guid",
+					Tag:  "abac.policy1_guid",
 					Children: []*ObligationsNode{
 						&ObligationsNode{
 							Kind: ObligationsOr,
-							Tag: "stmt0",
+							Tag:  "stmt0",
 							Children: []*ObligationsNode{
 								&ObligationsNode{
-									Kind: ObligationsCondition,
+									Kind:      ObligationsCondition,
 									Condition: "ctx.i == 1",
 								},
 								&ObligationsNode{
-									Kind: ObligationsCondition,
+									Kind:      ObligationsCondition,
 									Condition: "ctx.j == 2",
 								},
 								&ObligationsNode{
-									Kind: ObligationsCondition,
+									Kind:      ObligationsCondition,
 									Condition: "ctx.k == 3",
 								},
 							},
@@ -365,7 +367,7 @@ var obligationsNodeTests = []struct {
 		expectedSQL:  `((ctx.i = 1) OR (ctx.j = 2) OR (ctx.k = 3))`,
 	},
 	{
-		expectedErr:  nil,
+		expectedErr: nil,
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": {
@@ -378,19 +380,19 @@ var obligationsNodeTests = []struct {
 				}
 			}
 		}`,
-		expectedVal:  &ObligationsNode{
+		expectedVal: &ObligationsNode{
 			Kind: ObligationsOr,
 			Children: []*ObligationsNode{
 				&ObligationsNode{
 					Kind: ObligationsOr,
-					Tag: "abac.policy1_guid",
+					Tag:  "abac.policy1_guid",
 					Children: []*ObligationsNode{
 						&ObligationsNode{
 							Kind: ObligationsOr,
-							Tag: "stmt0",
+							Tag:  "stmt0",
 							Children: []*ObligationsNode{
 								&ObligationsNode{
-									Kind: ObligationsCondition,
+									Kind:      ObligationsCondition,
 									Condition: "ctx.a == 1",
 								},
 							},
@@ -399,28 +401,28 @@ var obligationsNodeTests = []struct {
 				},
 				&ObligationsNode{
 					Kind: ObligationsOr,
-					Tag: "abac.policy2_guid",
+					Tag:  "abac.policy2_guid",
 					Children: []*ObligationsNode{
 						&ObligationsNode{
 							Kind: ObligationsOr,
-							Tag: "stmt0",
+							Tag:  "stmt0",
 							Children: []*ObligationsNode{
 								&ObligationsNode{
-									Kind: ObligationsCondition,
+									Kind:      ObligationsCondition,
 									Condition: "ctx.b == 2",
 								},
 								&ObligationsNode{
-									Kind: ObligationsCondition,
+									Kind:      ObligationsCondition,
 									Condition: "ctx.c == 3",
 								},
 							},
 						},
 						&ObligationsNode{
 							Kind: ObligationsOr,
-							Tag: "stmt1",
+							Tag:  "stmt1",
 							Children: []*ObligationsNode{
 								&ObligationsNode{
-									Kind: ObligationsCondition,
+									Kind:      ObligationsCondition,
 									Condition: "ctx.d == 4",
 								},
 							},
@@ -433,7 +435,7 @@ var obligationsNodeTests = []struct {
 		expectedSQL:  `((ctx.a = 1) OR (((ctx.b = 2) OR (ctx.c = 3)) OR (ctx.d = 4)))`,
 	},
 	{
-		expectedErr:  nil,
+		expectedErr: nil,
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": {
@@ -442,19 +444,19 @@ var obligationsNodeTests = []struct {
 				}
 			}
 		}`,
-		expectedVal:  &ObligationsNode{
+		expectedVal: &ObligationsNode{
 			Kind: ObligationsOr,
 			Children: []*ObligationsNode{
 				&ObligationsNode{
 					Kind: ObligationsOr,
-					Tag: "abac.policy1_guid",
+					Tag:  "abac.policy1_guid",
 					Children: []*ObligationsNode{
 						&ObligationsNode{
 							Kind: ObligationsOr,
-							Tag: "stmt0",
+							Tag:  "stmt0",
 							Children: []*ObligationsNode{
 								&ObligationsNode{
-									Kind: ObligationsCondition,
+									Kind:      ObligationsCondition,
 									Condition: "type:ddi.ipam; ctx.tags[\"a\"] == 1",
 								},
 							},
@@ -467,7 +469,7 @@ var obligationsNodeTests = []struct {
 		expectedSQL:  `(ipam.tags->'a' = 1)`,
 	},
 	{
-		expectedErr:  nil,
+		expectedErr: nil,
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": {
@@ -476,19 +478,19 @@ var obligationsNodeTests = []struct {
 				}
 			}
 		}`,
-		expectedVal:  &ObligationsNode{
+		expectedVal: &ObligationsNode{
 			Kind: ObligationsOr,
 			Children: []*ObligationsNode{
 				&ObligationsNode{
 					Kind: ObligationsOr,
-					Tag: "abac.policy1_guid",
+					Tag:  "abac.policy1_guid",
 					Children: []*ObligationsNode{
 						&ObligationsNode{
 							Kind: ObligationsOr,
-							Tag: "stmt0",
+							Tag:  "stmt0",
 							Children: []*ObligationsNode{
 								&ObligationsNode{
-									Kind: ObligationsCondition,
+									Kind:      ObligationsCondition,
 									Condition: "ctx.a in 1, 2, 3",
 								},
 							},
