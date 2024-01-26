@@ -1,6 +1,6 @@
 module github.com/infobloxopen/atlas-authz-middleware
 
-go 1.17
+go 1.21
 
 require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0

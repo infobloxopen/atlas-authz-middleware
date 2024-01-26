@@ -17,9 +17,12 @@ var ErrInvalidEntitledFeatures = status.Errorf(codes.Internal, "Invalid entitled
 
 // FlattenRawEntitledFeatures flattens raw entitled_features into an array
 // The raw JSON-unmarshaled entitled_features is of the form:
-//   map[string]interface {}{"lic":[]interface {}{"dhcp", "ipam"}, "rpz":[]interface {}{"bogon", "malware"}}}
+//
+//	map[string]interface {}{"lic":[]interface {}{"dhcp", "ipam"}, "rpz":[]interface {}{"bogon", "malware"}}}
+//
 // Returns flattened array of the form:
-//   []string{"lic.dhcp", "lic.ipam", "rpz.bogon", "rpz.malware"}
+//
+//	[]string{"lic.dhcp", "lic.ipam", "rpz.bogon", "rpz.malware"}
 func FlattenRawEntitledFeatures(efIfc interface{}) ([]string, error) {
 	if common.IsNilInterface(efIfc) {
 		return nil, nil

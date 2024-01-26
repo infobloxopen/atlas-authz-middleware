@@ -14,8 +14,8 @@ import (
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	az "github.com/infobloxopen/atlas-authz-middleware/common/authorizer"
-	logrus "github.com/sirupsen/logrus"
 	commonClaim "github.com/infobloxopen/atlas-authz-middleware/common/claim"
+	logrus "github.com/sirupsen/logrus"
 )
 
 func init() {

@@ -8,8 +8,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
-	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
 	az "github.com/infobloxopen/atlas-authz-middleware/common/authorizer"
+	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
 )
 
 const (

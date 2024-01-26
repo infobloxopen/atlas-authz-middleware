@@ -23,30 +23,41 @@ func Test_IsNilInterface(t *testing.T) {
 var uninitializedStringVar string
 
 type myStructType struct{}
+
 var uninitializedStructVar myStructType
 
 type myPtrType *myStructType
+
 var uninitializedPtrVar myPtrType
 
 type myMapType map[string]string
+
 var uninitializedMapVar myMapType
 
 type myArrayType [3]string
+
 var uninitializedArrayVar myArrayType
 
 type mySliceType []string
+
 var uninitializedSliceVar mySliceType
 
 type myFuncType func(*testing.T)
+
 var uninitializedFuncVar myFuncType
-func myTestFunc(*testing.T){}
+
+func myTestFunc(*testing.T) {}
+
 var initializedFuncVar myFuncType = myTestFunc
 
 type myChanType chan string
+
 var uninitializedChanVar myChanType
 
 type myInterfaceType interface{ myMethod() }
+
 func (myST *myStructType) myMethod() {}
+
 var uninitializedStructPtrVar *myStructType
 var uninitializedInterfaceVar myInterfaceType
 var nilinitializedInterfaceVar myInterfaceType = uninitializedStructPtrVar

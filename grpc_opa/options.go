@@ -3,8 +3,8 @@ package grpc_opa_middleware
 import (
 	"net/http"
 
-	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
 	az "github.com/infobloxopen/atlas-authz-middleware/common/authorizer"
+	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
 )
 
 type Option func(c *Config)

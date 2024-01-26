@@ -274,7 +274,7 @@ func (a *DefaultAuthorizer) OpaQuery(ctx context.Context, decisionDocument strin
 	if err != nil {
 		grpcErr := opa_client.GRPCError(err)
 		logger.WithError(grpcErr).Error("opa_policy_engine_request_error")
-		return az.OpaqueError(grpcErr)
+		return opaqueError(grpcErr)
 	}
 
 	logger.WithField("opaResp", opaResp).Debug("opa_policy_engine_response")
@@ -311,3 +311,17 @@ func (a *DefaultAuthorizer) AffirmAuthorization(ctx context.Context, fullMethod 
 var (
 	errUnavailable = status.Error(codes.Unavailable, `Post http://localhost:8181/: dial tcp: connection refused`)
 )
+
+// opaqueError trims some privileged information from errors
+// as these get sent directly as grpc responses
+func opaqueError(err error) error {
+
+	switch status.Code(err) {
+	case codes.Unavailable:
+		return opa_client.ErrServiceUnavailable
+	case codes.Unknown:
+		return opa_client.ErrUnknown
+	}
+
+	return err
+}
