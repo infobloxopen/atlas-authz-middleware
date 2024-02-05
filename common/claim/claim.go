@@ -20,6 +20,9 @@ func NullClaimsVerifier([]string, []string) (string, []error) {
 func UnverifiedClaimFromBearers(bearer, newBearer []string) (string, []error) {
 	_, validBearer, bearerErrorList := atlas_claims.ParseUnverifiedClaimsFromJwtStringsRaw(bearer)
 	_, validNewBearer, newBearerErrorList := atlas_claims.ParseUnverifiedClaimsFromJwtStringsRaw(newBearer)
+	if len(newBearerErrorList) > 0 || len(bearerErrorList) > 0 {
+		//TODO:fishy Should not have multiple newBearers
+	}
 	// Take the new bearer if possible.
 	if len(validNewBearer) > 0 {
 		return validNewBearer, nil
