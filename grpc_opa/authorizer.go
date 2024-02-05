@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/infobloxopen/atlas-app-toolkit/requestid"
+	"github.com/infobloxopen/atlas-authz-middleware/common"
 	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
 	atlas_claims "github.com/infobloxopen/atlas-claims"
 )
@@ -174,7 +175,8 @@ type Config struct {
 
 type ClaimsVerifier func([]string, []string) (string, []error)
 
-// 	FullMethod is the full RPC method string, i.e., /package.service/method.
+//	FullMethod is the full RPC method string, i.e., /package.service/method.
+//
 // e.g. fullmethod:  /service.TagService/ListRetiredTags PARGs endpoint: TagService.ListRetiredTags
 func parseEndpoint(fullMethod string) string {
 	byPackage := strings.Split(fullMethod, ".")
@@ -218,7 +220,7 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 		FullMethod:  fullMethod,
 		Application: a.application,
 		// FIXME: implement atlas_claims.AuthBearersFromCtx
-		JWT:              redactJWT(rawJWT),
+		JWT:              common.RedactJWT(rawJWT),
 		RequestID:        reqID,
 		EntitledServices: a.entitledServices,
 	}
@@ -435,34 +437,10 @@ func (o OPAResponse) Obligations() (*ObligationsNode, error) {
 	return nil, nil
 }
 
-func redactJWT(jwt string) string {
-	parts := strings.Split(jwt, ".")
-	if len(parts) > 0 {
-		parts[len(parts)-1] = REDACTED
-	}
-	return strings.Join(parts, ".")
-}
-
-func redactJWTForDebug(jwt string) string {
-	parts := strings.Split(jwt, ".")
-	// Redact signature, header and body since we do not want to display any for debug logging
-	for i := range parts {
-		parts[i] = parts[i][:min(len(parts[i]), 16)] + "/" + REDACTED
-	}
-	return strings.Join(parts, ".")
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func shortenPayloadForDebug(full Payload) Payload {
 	// This is a shallow copy
 	shorten := Payload(full)
-	shorten.JWT = redactJWTForDebug(shorten.JWT)
+	shorten.JWT = common.RedactJWTForDebug(shorten.JWT)
 	return shorten
 }
 

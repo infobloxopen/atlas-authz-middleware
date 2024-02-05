@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
@@ -17,15 +16,6 @@ import (
 	logrus "github.com/sirupsen/logrus"
 	logrustesthook "github.com/sirupsen/logrus/hooks/test"
 )
-
-func TestRedactJWT(t *testing.T) {
-	token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
-
-	if redacted := redactJWT(token); !strings.HasSuffix(redacted, REDACTED) {
-
-		t.Errorf("got: %s, wanted: %s", redacted, REDACTED)
-	}
-}
 
 func Test_parseEndpoint(t *testing.T) {
 	tests := []struct {
