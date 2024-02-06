@@ -16,11 +16,11 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/infobloxopen/atlas-app-toolkit/requestid"
-	"github.com/infobloxopen/atlas-authz-middleware/common"
-	az "github.com/infobloxopen/atlas-authz-middleware/common/authorizer"
-	commonClaim "github.com/infobloxopen/atlas-authz-middleware/common/claim"
-	"github.com/infobloxopen/atlas-authz-middleware/common/opautil"
-	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/common"
+	az "github.com/infobloxopen/atlas-authz-middleware/v2/common/authorizer"
+	commonClaim "github.com/infobloxopen/atlas-authz-middleware/v2/common/claim"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/common/opautil"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/pkg/opa_client"
 	atlas_claims "github.com/infobloxopen/atlas-claims"
 )
 

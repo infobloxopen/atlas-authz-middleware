@@ -7,10 +7,10 @@ import (
 	"reflect"
 	"testing"
 
-	commonClaim "github.com/infobloxopen/atlas-authz-middleware/common/claim"
-	"github.com/infobloxopen/atlas-authz-middleware/common/opautil"
-	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
-	"github.com/infobloxopen/atlas-authz-middleware/utils_test"
+	commonClaim "github.com/infobloxopen/atlas-authz-middleware/v2/common/claim"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/common/opautil"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/pkg/opa_client"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/utils_test"
 )
 
 func Test_WithEntitledServices_payload(t *testing.T) {

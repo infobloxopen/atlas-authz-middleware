@@ -1,4 +1,4 @@
-module github.com/infobloxopen/atlas-authz-middleware
+module github.com/infobloxopen/atlas-authz-middleware/v2
 
 go 1.19
 

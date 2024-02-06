@@ -8,11 +8,11 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/infobloxopen/atlas-authz-middleware/common/authorizer"
-	"github.com/infobloxopen/atlas-authz-middleware/common/claim"
-	opamw "github.com/infobloxopen/atlas-authz-middleware/grpc_opa"
-	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
-	"github.com/infobloxopen/atlas-authz-middleware/utils_test"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/common/authorizer"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/common/claim"
+	opamw "github.com/infobloxopen/atlas-authz-middleware/v2/grpc_opa"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/pkg/opa_client"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/utils_test"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	logrus "github.com/sirupsen/logrus"

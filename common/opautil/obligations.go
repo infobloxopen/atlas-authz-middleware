@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/infobloxopen/atlas-authz-middleware/common"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/common"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

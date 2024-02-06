@@ -3,23 +3,20 @@ package httpopa
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
-	"github.com/infobloxopen/atlas-authz-middleware/common"
-	az "github.com/infobloxopen/atlas-authz-middleware/common/authorizer"
-	commonClaim "github.com/infobloxopen/atlas-authz-middleware/common/claim"
-	"github.com/infobloxopen/atlas-authz-middleware/common/opautil"
-	"github.com/infobloxopen/atlas-authz-middleware/http_opa/exception"
-	"github.com/infobloxopen/atlas-authz-middleware/http_opa/util"
-	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/common"
+	az "github.com/infobloxopen/atlas-authz-middleware/v2/common/authorizer"
+	commonClaim "github.com/infobloxopen/atlas-authz-middleware/v2/common/claim"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/common/opautil"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/http_opa/exception"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/http_opa/util"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/pkg/opa_client"
 	log "github.com/sirupsen/logrus"
-	"go.opencensus.io/trace"
 	"go.uber.org/multierr"
-	"google.golang.org/grpc"
 )
 
 // SERVICENAME is the name of the OPA service.
@@ -38,6 +35,7 @@ type httpAuthorizer struct {
 }
 
 var defDecisionInputer = new(az.DefaultDecisionInputer)
+
 // NewHttpAuthorizer creates a new instance of httpAuthorizer with the given application name and options.
 func NewHttpAuthorizer(application string, opts ...Option) az.Authorizer {
 	// Configuration options for the authorizer
@@ -106,11 +104,11 @@ func (a *httpAuthorizer) Evaluate(ctx context.Context, endpoint string, req inte
 
 	// Prepare the OPA request payload
 	opaReq := opautil.Payload{
-		Endpoint:    pargsEndpoint,
-		FullMethod:  endpoint,
-		Application: a.application,
-		JWT:         opautil.RedactJWT(rawJWT),
-		RequestID:   reqID,
+		Endpoint:         pargsEndpoint,
+		FullMethod:       endpoint,
+		Application:      a.application,
+		JWT:              opautil.RedactJWT(rawJWT),
+		RequestID:        reqID,
 		EntitledServices: a.entitledServices,
 	}
 
@@ -125,13 +123,14 @@ func (a *httpAuthorizer) Evaluate(ctx context.Context, endpoint string, req inte
 
 	opaReq.DecisionInput = *decisionInput
 
-	opaReqJSON, err := json.Marshal(opaReq)
-	if err != nil {
-		logger.WithFields(log.Fields{
-			"opaReq": opaReq,
-		}).WithError(err).Error("opa_request_json_marshal")
-		return false, ctx, exception.ErrInvalidArg
-	}
+	// TODO: Add tracing for the middleware
+	// opaReqJSON, err := json.Marshal(opaReq)
+	// if err != nil {
+	// 	logger.WithFields(log.Fields{
+	// 		"opaReq": opaReq,
+	// 	}).WithError(err).Error("opa_request_json_marshal")
+	// 	return false, ctx, exception.ErrInvalidArg
+	// }
 
 	now := time.Now()
 	obfuscatedOpaReq := opautil.ShortenPayloadForDebug(opaReq)
@@ -139,13 +138,14 @@ func (a *httpAuthorizer) Evaluate(ctx context.Context, endpoint string, req inte
 		"opaReq": obfuscatedOpaReq,
 	}).Debug("opa_authorization_request")
 
+	// TODO: Add tracing for the middleware
 	// Start a new trace span
-	ctx, span := trace.StartSpan(ctx, fmt.Sprint(SERVICENAME, endpoint))
-	{
-		span.Annotate([]trace.Attribute{
-			trace.StringAttribute("in", string(opaReqJSON)),
-		}, "in")
-	}
+	// ctx, span := trace.StartSpan(ctx, fmt.Sprint(SERVICENAME, endpoint))
+	// {
+	// 	span.Annotate([]trace.Attribute{
+	// 		trace.StringAttribute("in", string(opaReqJSON)),
+	// 	}, "in")
+	// }
 
 	// Prepare the OPA input based on the decision document
 	var opaInput interface{}
@@ -157,11 +157,12 @@ func (a *httpAuthorizer) Evaluate(ctx context.Context, endpoint string, req inte
 	var opaResp opautil.OPAResponse
 	err = opaEvaluator(ctxlogrus.ToContext(ctx, logger), decisionInput.DecisionDocument, opaInput, &opaResp)
 	defer func() {
-		span.SetStatus(trace.Status{
-			Code:    int32(grpc.Code(err)),
-			Message: grpc.ErrorDesc(err),
-		})
-		span.End()
+		// TODO: Add tracing for the middleware
+		// span.SetStatus(trace.Status{
+		// 	Code:    int32(grpc.Code(err)),
+		// 	Message: grpc.ErrorDesc(err),
+		// })
+		// span.End()
 		logger.WithFields(log.Fields{
 			"opaResp": opaResp,
 			"elapsed": time.Since(now),
@@ -185,10 +186,11 @@ func (a *httpAuthorizer) Evaluate(ctx context.Context, endpoint string, req inte
 
 	// Log non-error OPA responses
 	{
-		raw, _ := json.Marshal(opaResp)
-		span.Annotate([]trace.Attribute{
-			trace.StringAttribute("out", string(raw)),
-		}, "out")
+		// TODO: Add tracing for the middleware
+		// raw, _ := json.Marshal(opaResp)
+		// span.Annotate([]trace.Attribute{
+		// 	trace.StringAttribute("out", string(raw)),
+		// }, "out")
 	}
 
 	// Add raw entitled_features data to the context
@@ -218,10 +220,10 @@ func (a *httpAuthorizer) OpaQuery(ctx context.Context, decisionDocument string, 
 
 	logger := ctxlogrus.Extract(ctx)
 
-// Empty document path is intentional
+	// Empty document path is intentional
 	// DO NOT hardcode a path here
 	err := a.clienter.CustomQuery(ctx, decisionDocument, opaReq, opaResp)
-// TODO: allow overriding logger
+	// TODO: allow overriding logger
 	if err != nil {
 		httpErr := exception.GrpcToHttpError(err)
 		logger.WithError(httpErr).Error("opa_policy_engine_request_error")

@@ -8,7 +8,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/infobloxopen/atlas-authz-middleware/common/opautil"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/common/opautil"
 )
 
 const (

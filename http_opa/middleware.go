@@ -6,7 +6,7 @@ import (
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 
-	"github.com/infobloxopen/atlas-authz-middleware/http_opa/exception"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/http_opa/exception"
 )
 
 type ContextKey string
@@ -15,8 +15,8 @@ var (
 	EndPointKey = ContextKey("endpoint")
 )
 
-// AuthzMiddleware evaluate the OPA policy against the requested endpoint, and aborts the request if not authorized.
-func AuthzMiddleware(application string, opts ...Option) func(http.Handler) http.Handler {
+// NewServerAuthzMiddleware evaluate the OPA policy against the requested endpoint, and aborts the request if not authorized.
+func NewServerAuthzMiddleware(application string, opts ...Option) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()

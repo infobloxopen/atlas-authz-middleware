@@ -1,10 +1,22 @@
 package httpopa
 
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/infobloxopen/atlas-authz-middleware/v2/common/authorizer"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/http_opa/exception"
+	"github.com/stretchr/testify/assert"
+	mock "github.com/stretchr/testify/mock"
+)
+
 func TestAuthzMiddleware(t *testing.T) {
 	testCases := []struct {
 		name             string
 		application      string
-		opts             []authorizer.Option
+		opts             []Option
 		expectAuth       bool
 		modifyAuthorizer func(*authorizer.MockAuthorizer)
 	}{
@@ -35,7 +47,7 @@ func TestAuthzMiddleware(t *testing.T) {
 			ma := &authorizer.MockAuthorizer{}
 			tc.modifyAuthorizer(ma)
 
-			tc.opts = append(tc.opts, authorizer.WithAuthorizer(ma))
+			tc.opts = append(tc.opts, WithAuthorizer(ma))
 
 			request := httptest.NewRequest(http.MethodGet, "/", nil)
 

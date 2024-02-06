@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	az "github.com/infobloxopen/atlas-authz-middleware/common/authorizer"
+	az "github.com/infobloxopen/atlas-authz-middleware/v2/common/authorizer"
 
 	sqlcompiler "github.com/infobloxopen/seal/pkg/compiler/sql"
 )

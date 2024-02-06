@@ -9,13 +9,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
-	"github.com/infobloxopen/atlas-authz-middleware/utils_test"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/pkg/opa_client"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/utils_test"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
-	az "github.com/infobloxopen/atlas-authz-middleware/common/authorizer"
-	commonClaim "github.com/infobloxopen/atlas-authz-middleware/common/claim"
-	"github.com/infobloxopen/atlas-authz-middleware/common/opautil"
+	az "github.com/infobloxopen/atlas-authz-middleware/v2/common/authorizer"
+	commonClaim "github.com/infobloxopen/atlas-authz-middleware/v2/common/claim"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/common/opautil"
 	logrus "github.com/sirupsen/logrus"
 	logrustesthook "github.com/sirupsen/logrus/hooks/test"
 )

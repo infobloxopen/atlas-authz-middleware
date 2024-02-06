@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/infobloxopen/atlas-app-toolkit/requestid"
-	"github.com/infobloxopen/atlas-authz-middleware/http_opa/exception"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/http_opa/exception"
 )
 
 // GetRequestIdFromRequest fetches requestid from http request

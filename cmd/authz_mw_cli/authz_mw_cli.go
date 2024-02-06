@@ -14,15 +14,15 @@ import (
 	"regexp"
 	"strings"
 
-	opamw "github.com/infobloxopen/atlas-authz-middleware/grpc_opa"
-	opacl "github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
+	opamw "github.com/infobloxopen/atlas-authz-middleware/v2/grpc_opa"
+	opacl "github.com/infobloxopen/atlas-authz-middleware/v2/pkg/opa_client"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/grpc-ecosystem/go-grpc-middleware/util/metautils"
 
 	logrus "github.com/sirupsen/logrus"
 
-	az "github.com/infobloxopen/atlas-authz-middleware/common/authorizer"
+	az "github.com/infobloxopen/atlas-authz-middleware/v2/common/authorizer"
 	"google.golang.org/grpc/metadata"
 )
 

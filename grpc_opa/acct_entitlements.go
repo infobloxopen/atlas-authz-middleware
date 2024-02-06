@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
-	"github.com/infobloxopen/atlas-authz-middleware/common/opautil"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/common/opautil"
 	logrus "github.com/sirupsen/logrus"
 )
 
