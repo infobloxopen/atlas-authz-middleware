@@ -2,9 +2,8 @@ package authorizer
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
@@ -14,9 +13,7 @@ import (
 	"github.com/infobloxopen/atlas-authz-middleware/http_opa/util"
 	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
 	log "github.com/sirupsen/logrus"
-	"go.opencensus.io/trace"
 	"go.uber.org/multierr"
-	"google.golang.org/grpc"
 )
 
 // SERVICENAME is the name of the Opa service.
@@ -126,11 +123,11 @@ func (a *httpAuthorizer) Evaluate(ctx context.Context, endpoint string, req inte
 
 	// Create the Opa request payload
 	opaReq := Payload{
-		Endpoint:    pargsEndpoint,
-		FullMethod:  endpoint,
-		Application: a.application,
-		JWT:         common.RedactJWT(rawJWT),
-		RequestID:   reqID,
+		Endpoint:         pargsEndpoint,
+		FullMethod:       endpoint,
+		Application:      a.application,
+		JWT:              common.RedactJWT(rawJWT),
+		RequestID:        reqID,
 		EntitledServices: a.entitledServices,
 	}
 
@@ -145,14 +142,16 @@ func (a *httpAuthorizer) Evaluate(ctx context.Context, endpoint string, req inte
 
 	opaReq.DecisionInput = *decisionInput
 
+	//TODO: add tracing for the middleware similar to the one in the grpc interceptor
+
 	// Marshal the Opa request payload to JSON
-	opaReqJSON, err := json.Marshal(opaReq)
-	if err != nil {
-		logger.WithFields(log.Fields{
-			"opaReq": opaReq,
-		}).WithError(err).Error("opa_request_json_marshal")
-		return false, ctx, exception.ErrInvalidArg
-	}
+	// opaReqJSON, err := json.Marshal(opaReq)
+	// if err != nil {
+	// 	logger.WithFields(log.Fields{
+	// 		"opaReq": opaReq,
+	// 	}).WithError(err).Error("opa_request_json_marshal")
+	// 	return false, ctx, exception.ErrInvalidArg
+	// }
 
 	// Start a trace span for the Opa request
 	now := time.Now()
@@ -160,12 +159,14 @@ func (a *httpAuthorizer) Evaluate(ctx context.Context, endpoint string, req inte
 	logger.WithFields(log.Fields{
 		"opaReq": obfuscatedOpaReq,
 	}).Debug("opa_authorization_request")
-	ctx, span := trace.StartSpan(ctx, fmt.Sprint(SERVICENAME, endpoint))
-	{
-		span.Annotate([]trace.Attribute{
-			trace.StringAttribute("in", string(opaReqJSON)),
-		}, "in")
-	}
+
+	//TODO: add tracing for the middleware similar to the one in the grpc interceptor
+	// ctx, span := trace.StartSpan(ctx, fmt.Sprint(SERVICENAME, endpoint))
+	// {
+	// 	span.Annotate([]trace.Attribute{
+	// 		trace.StringAttribute("in", string(opaReqJSON)),
+	// 	}, "in")
+	// }
 
 	// Prepare the Opa input based on the decision document
 	var opaInput interface{}
@@ -178,11 +179,12 @@ func (a *httpAuthorizer) Evaluate(ctx context.Context, endpoint string, req inte
 	var opaResp OPAResponse
 	err = opaEvaluator(ctxlogrus.ToContext(ctx, logger), decisionInput.DecisionDocument, opaInput, &opaResp)
 	defer func() {
-		span.SetStatus(trace.Status{
-			Code:    int32(grpc.Code(err)),
-			Message: grpc.ErrorDesc(err),
-		})
-		span.End()
+		//TODO: add tracing for the middleware similar to the one in the grpc interceptor
+		// span.SetStatus(trace.Status{
+		// 	Code:    int32(grpc.Code(err)),
+		// 	Message: grpc.ErrorDesc(err),
+		// })
+		// span.End()
 		logger.WithFields(log.Fields{
 			"opaResp": opaResp,
 			"elapsed": time.Since(now),
@@ -206,10 +208,11 @@ func (a *httpAuthorizer) Evaluate(ctx context.Context, endpoint string, req inte
 
 	// Log the Opa response
 	{
-		raw, _ := json.Marshal(opaResp)
-		span.Annotate([]trace.Attribute{
-			trace.StringAttribute("out", string(raw)),
-		}, "out")
+		//TODO: add tracing for the middleware similar to the one in the grpc interceptor
+		// raw, _ := json.Marshal(opaResp)
+		// span.Annotate([]trace.Attribute{
+		// 	trace.StringAttribute("out", string(raw)),
+		// }, "out")
 	}
 
 	// Add raw entitled_features data to the context
@@ -239,7 +242,7 @@ func (a *httpAuthorizer) OpaQuery(ctx context.Context, decisionDocument string, 
 
 	logger := ctxlogrus.Extract(ctx)
 
-// Empty document path is intentional
+	// Empty document path is intentional
 	// DO NOT hardcode a path here
 	err := a.clienter.CustomQuery(ctx, decisionDocument, opaReq, opaResp)
 	if err != nil {

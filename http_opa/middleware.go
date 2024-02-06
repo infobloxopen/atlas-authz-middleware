@@ -16,7 +16,7 @@ var (
 )
 
 
-// AuthzMiddleware is a middleware function that performs authorization checks for incoming HTTP requests.
+// NewServerAuthzMiddleware is a middleware function that performs authorization checks for incoming HTTP requests.
 // It takes an application name and optional authorizer options as parameters.
 // The returned middleware function wraps the provided http.Handler and performs authorization checks before passing the request to the next handler.
 // If the authorization check fails, it returns an HTTP error response.
@@ -24,7 +24,7 @@ var (
 // It iterates over a list of authorizers and stops at the first authorizer that returns a successful authorization result.
 // If none of the authorizers return a successful result, it returns an HTTP error response indicating that the request is not authorized.
 // The middleware logs any errors that occur during the authorization process.
-func AuthzMiddleware(application string, opts ...authorizer.Option) func(http.Handler) http.Handler {
+func NewServerAuthzMiddleware(application string, opts ...authorizer.Option) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()

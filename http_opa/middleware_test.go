@@ -51,7 +51,7 @@ func TestAuthzMiddleware(t *testing.T) {
 
 			request := httptest.NewRequest(http.MethodGet, "/", nil)
 
-			middleware := AuthzMiddleware(tc.application, tc.opts...)
+			middleware := NewServerAuthzMiddleware(tc.application, tc.opts...)
 			rr := httptest.NewRecorder()
 
 			middleware(handler).ServeHTTP(rr, request)
