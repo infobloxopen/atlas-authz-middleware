@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"testing"
 
+	commonClaim "github.com/infobloxopen/atlas-authz-middleware/common/claim"
+	"github.com/infobloxopen/atlas-authz-middleware/common/opautil"
 	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
 	"github.com/infobloxopen/atlas-authz-middleware/utils_test"
 )
@@ -63,7 +65,7 @@ func Test_WithEntitledServices_payload(t *testing.T) {
 
 		auther := NewDefaultAuthorizer("app",
 			WithOpaClienter(&mockOpaClienter),
-			WithClaimsVerifier(NullClaimsVerifier),
+			WithClaimsVerifier(commonClaim.NullClaimsVerifier),
 		)
 
 		inputEntitledServices, ok := tstc.inputEntitledServices.([]string)
@@ -72,7 +74,7 @@ func Test_WithEntitledServices_payload(t *testing.T) {
 				idx, tstc.name, inputEntitledServices)
 			auther = NewDefaultAuthorizer("app",
 				WithOpaClienter(&mockOpaClienter),
-				WithClaimsVerifier(NullClaimsVerifier),
+				WithClaimsVerifier(commonClaim.NullClaimsVerifier),
 				WithEntitledServices(inputEntitledServices...),
 			)
 		}
@@ -115,7 +117,7 @@ func (m optionsMockOpaClienter) CustomQuery(ctx context.Context, document string
 	t, _ := ctx.Value(utils_test.TestingTContextKey).(*testing.T)
 	tcIdx, _ := ctx.Value(utils_test.TestCaseIndexContextKey).(int)
 	tcName, _ := ctx.Value(utils_test.TestCaseNameContextKey).(string)
-	payload, _ := reqData.(Payload)
+	payload, _ := reqData.(opautil.Payload)
 	if m.VerifyEntitledServices && !reflect.DeepEqual(payload.EntitledServices, m.ExpectEntitledServices) {
 		t.Errorf("tst#%d: FAIL: name=%s; not equal: payload.EntitledServices=%#v; m.ExpectEntitledServices=%#v",
 			tcIdx, tcName, payload.EntitledServices, m.ExpectEntitledServices)

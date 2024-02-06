@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	az "github.com/infobloxopen/atlas-authz-middleware/v2/common/authorizer"
+	az "github.com/infobloxopen/atlas-authz-middleware/common/authorizer"
 )
 
 func Test_AddObligations(t *testing.T) {

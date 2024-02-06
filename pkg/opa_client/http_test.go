@@ -8,6 +8,8 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/infobloxopen/atlas-authz-middleware/common/authorizer"
+	"github.com/infobloxopen/atlas-authz-middleware/common/claim"
 	opamw "github.com/infobloxopen/atlas-authz-middleware/grpc_opa"
 	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
 	"github.com/infobloxopen/atlas-authz-middleware/utils_test"
@@ -95,7 +97,7 @@ func TestPolicyReturningRegoSet(t *testing.T) {
 	auther := opamw.NewDefaultAuthorizer("app",
 		opamw.WithOpaClienter(cli),
 		opamw.WithDecisionInputHandler(mockDecInp),
-		opamw.WithClaimsVerifier(opamw.NullClaimsVerifier),
+		opamw.WithClaimsVerifier(claim.NullClaimsVerifier),
 	)
 
 	// If authorization is permitted, then this verifies that the OPA JSON results were correctly decoded,
@@ -220,8 +222,8 @@ func (m MockDecisionInputer) String() string {
 	return "opa_client_test.MockDecisionInputer{}"
 }
 
-func (m *MockDecisionInputer) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*opamw.DecisionInput, error) {
-	decInp := opamw.DecisionInput{
+func (m *MockDecisionInputer) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*authorizer.DecisionInput, error) {
+	decInp := authorizer.DecisionInput{
 		DecisionDocument: "/v1/data/policy_returning_set/get_results",
 	}
 	return &decInp, nil

@@ -15,7 +15,7 @@ type DecisionInput struct {
 type DecisionInputHandler interface {
 	// GetDecisionInput returns an app/service-specific DecisionInput.
 	// A nil DecisionInput should NOT be returned unless error.
-	GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*DecisionInput, error)
+	GetDecisionInput(ctx context.Context, fullMethod string, req interface{}) (*DecisionInput, error)
 }
 
 // DefaultDecisionInputer is an example DecisionInputHandler that is used as default

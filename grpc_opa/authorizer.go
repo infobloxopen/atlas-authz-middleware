@@ -16,22 +16,12 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/infobloxopen/atlas-app-toolkit/requestid"
+	"github.com/infobloxopen/atlas-authz-middleware/common"
+	az "github.com/infobloxopen/atlas-authz-middleware/common/authorizer"
+	commonClaim "github.com/infobloxopen/atlas-authz-middleware/common/claim"
+	"github.com/infobloxopen/atlas-authz-middleware/common/opautil"
 	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
 	atlas_claims "github.com/infobloxopen/atlas-claims"
-)
-
-// ABACKey is a context.Context key type
-type ABACKey string
-type ObligationKey string
-
-const (
-	// DefaultValidatePath is default OPA path to perform authz validation
-	DefaultValidatePath = "v1/data/authz/rbac/validate_v1"
-
-	REDACTED = "redacted"
-	TypeKey  = ABACKey("ABACType")
-	VerbKey  = ABACKey("ABACVerb")
-	ObKey    = ObligationKey("obligations")
 )
 
 // Override to set your servicename
@@ -45,76 +35,15 @@ var (
 	ErrInvalidArg = status.Errorf(codes.InvalidArgument, "Invalid argument")
 )
 
-// DecisionInput is app/service-specific data supplied by app/service ABAC requests
-type DecisionInput struct {
-	Type             string        `json:"type"` // Object/resource-type to match
-	Verb             string        `json:"verb"` // Verb to match
-	SealCtx          []interface{} `json:"ctx"`  // Array of app/service-specific context data to match
-	DecisionDocument string        `json:"-"`    // OPA decision document to query, by default "",
-	// which is default decision document configured in OPA
-}
+var defDecisionInputer = new(az.DefaultDecisionInputer)
 
-// fullMethod is of the form "Service.FullMethod"
-type DecisionInputHandler interface {
-	// GetDecisionInput returns an app/service-specific DecisionInput.
-	// A nil DecisionInput should NOT be returned unless error.
-	GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*DecisionInput, error)
-}
-
-// DefaultDecisionInputer is an example DecisionInputHandler that is used as default
-type DefaultDecisionInputer struct{}
-
-func (m DefaultDecisionInputer) String() string {
-	return "grpc_opa_middleware.DefaultDecisionInputer{}"
-}
-
-// GetDecisionInput is an example DecisionInputHandler that returns some decision input
-// based on some incoming Context values.  App/services will most likely supply their
-// own DecisionInputHandler using WithDecisionInputHandler option.
-func (m *DefaultDecisionInputer) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*DecisionInput, error) {
-	var abacType string
-	if v, ok := ctx.Value(TypeKey).(string); ok {
-		abacType = v
-	}
-
-	var abacVerb string
-	if v, ok := ctx.Value(VerbKey).(string); ok {
-		abacVerb = v
-	}
-
-	decInp := DecisionInput{
-		Type: abacType,
-		Verb: abacVerb,
-	}
-	return &decInp, nil
-}
-
-var defDecisionInputer = new(DefaultDecisionInputer)
-
-// OpaEvaluator implements calling OPA with a request and receiving the raw response
-type OpaEvaluator func(ctx context.Context, decisionDocument string, opaReq, opaResp interface{}) error
-
-// Authorizer interface is implemented for making arbitrary requests to Opa.
-type Authorizer interface {
-	// Evaluate is called with the grpc request's method passing the grpc request Context.
-	// If the handler is executed, the request will be sent to Opa. Opa's response
-	// will be unmarshaled using JSON into the provided response.
-	// Evaluate returns true if the request is authorized. The context
-	// will be passed to subsequent HTTP Handler.
-	Evaluate(ctx context.Context, fullMethod string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error)
-
-	// OpaQuery executes query of the specified decisionDocument against OPA.
-	// If decisionDocument is "", then the query is executed against the default decision document configured in OPA.
-	OpaQuery(ctx context.Context, decisionDocument string, opaReq, opaResp interface{}) error
-}
-
-type AuthorizeFn func(ctx context.Context, fullMethodName string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error)
+type AuthorizeFn func(ctx context.Context, fullMethodName string, grpcReq interface{}, opaEvaluator az.OpaEvaluator) (bool, context.Context, error)
 
 func (a AuthorizeFn) OpaQuery(opaReq, opaResp interface{}) error {
 	return nil
 }
 
-func (a AuthorizeFn) Evaluate(ctx context.Context, fullMethod string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
+func (a AuthorizeFn) Evaluate(ctx context.Context, fullMethod string, grpcReq interface{}, opaEvaluator az.OpaEvaluator) (bool, context.Context, error) {
 	return a(ctx, fullMethod, grpcReq, opaEvaluator)
 }
 
@@ -122,8 +51,8 @@ func NewDefaultAuthorizer(application string, opts ...Option) *DefaultAuthorizer
 	cfg := &Config{
 		address:              opa_client.DefaultAddress,
 		decisionInputHandler: defDecisionInputer,
-		claimsVerifier:       UnverifiedClaimFromBearers,
-		acctEntitlementsApi:  DefaultAcctEntitlementsApiPath,
+		claimsVerifier:       commonClaim.UnverifiedClaimFromBearers,
+		acctEntitlementsApi:  common.DefaultAcctEntitlementsApiPath,
 	}
 	for _, opt := range opts {
 		opt(cfg)
@@ -151,9 +80,9 @@ func NewDefaultAuthorizer(application string, opts ...Option) *DefaultAuthorizer
 type DefaultAuthorizer struct {
 	application          string
 	clienter             opa_client.Clienter
-	opaEvaluator         OpaEvaluator
-	decisionInputHandler DecisionInputHandler
-	claimsVerifier       ClaimsVerifier
+	opaEvaluator         az.OpaEvaluator
+	decisionInputHandler az.DecisionInputHandler
+	claimsVerifier       az.ClaimsVerifier
 	entitledServices     []string
 	acctEntitlementsApi  string
 }
@@ -164,17 +93,16 @@ type Config struct {
 	address string
 
 	clienter             opa_client.Clienter
-	opaEvaluator         OpaEvaluator
-	authorizer           []Authorizer
-	decisionInputHandler DecisionInputHandler
-	claimsVerifier       ClaimsVerifier
+	opaEvaluator         az.OpaEvaluator
+	authorizer           []az.Authorizer
+	decisionInputHandler az.DecisionInputHandler
+	claimsVerifier       az.ClaimsVerifier
 	entitledServices     []string
 	acctEntitlementsApi  string
 }
 
-type ClaimsVerifier func([]string, []string) (string, []error)
-
-// 	FullMethod is the full RPC method string, i.e., /package.service/method.
+//	FullMethod is the full RPC method string, i.e., /package.service/method.
+//
 // e.g. fullmethod:  /service.TagService/ListRetiredTags PARGs endpoint: TagService.ListRetiredTags
 func parseEndpoint(fullMethod string) string {
 	byPackage := strings.Split(fullMethod, ".")
@@ -187,7 +115,7 @@ func (a DefaultAuthorizer) String() string {
 		a.application, a.clienter, a.decisionInputHandler)
 }
 
-func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
+func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grpcReq interface{}, opaEvaluator az.OpaEvaluator) (bool, context.Context, error) {
 
 	logger := ctxlogrus.Extract(ctx).WithFields(log.Fields{
 		"application": a.application,
@@ -200,7 +128,7 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 
 	claimsVerifier := a.claimsVerifier
 	if claimsVerifier == nil {
-		claimsVerifier = UnverifiedClaimFromBearers
+		claimsVerifier = commonClaim.UnverifiedClaimFromBearers
 	}
 
 	rawJWT, errs := claimsVerifier([]string{bearer}, []string{newBearer})
@@ -213,12 +141,12 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 		reqID = "no-request-uuid"
 	}
 
-	opaReq := Payload{
+	opaReq := opautil.Payload{
 		Endpoint:    parseEndpoint(fullMethod),
 		FullMethod:  fullMethod,
 		Application: a.application,
 		// FIXME: implement atlas_claims.AuthBearersFromCtx
-		JWT:              redactJWT(rawJWT),
+		JWT:              opautil.RedactJWT(rawJWT),
 		RequestID:        reqID,
 		EntitledServices: a.entitledServices,
 	}
@@ -242,7 +170,7 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 	}
 
 	now := time.Now()
-	obfuscatedOpaReq := shortenPayloadForDebug(opaReq)
+	obfuscatedOpaReq := opautil.ShortenPayloadForDebug(opaReq)
 	logger.WithFields(log.Fields{
 		"opaReq": obfuscatedOpaReq,
 		//"opaReqJSON": string(opaReqJSON),
@@ -266,10 +194,10 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 	var opaInput interface{}
 	opaInput = opaReq
 	if len(decisionInput.DecisionDocument) > 0 {
-		opaInput = OPARequest{Input: &opaReq}
+		opaInput = opautil.OPARequest{Input: &opaReq}
 	}
 
-	var opaResp OPAResponse
+	var opaResp opautil.OPAResponse
 	err = opaEvaluator(ctxlogrus.ToContext(ctx, logger), decisionInput.DecisionDocument, opaInput, &opaResp)
 	// Metrics, logging, tracing handler
 	defer func() {
@@ -301,7 +229,7 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 	if resultIsNested {
 		nestedResultMap, ok := nestedResultVal.(map[string]interface{})
 		if ok {
-			opaResp = OPAResponse{}
+			opaResp = opautil.OPAResponse{}
 			for k, v := range nestedResultMap {
 				opaResp[k] = v
 			}
@@ -320,7 +248,7 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 	ctx = opaResp.AddRawEntitledFeatures(ctx)
 
 	// adding obligations data to context if present
-	ctx, err = addObligations(ctx, opaResp)
+	ctx, err = opautil.AddObligations(ctx, opaResp)
 	if err != nil {
 		logger.WithField("opaResp", fmt.Sprintf("%#v", opaResp)).WithError(err).Error("parse_obligations_error")
 	}
@@ -396,80 +324,4 @@ func opaqueError(err error) error {
 	}
 
 	return err
-}
-
-type Payload struct {
-	Endpoint    string `json:"endpoint"`
-	Application string `json:"application"`
-	// FullMethod is the full RPC method string, i.e., /package.service/method.
-	FullMethod       string   `json:"full_method"`
-	JWT              string   `json:"jwt"`
-	RequestID        string   `json:"request_id"`
-	EntitledServices []string `json:"entitled_services"`
-	DecisionInput
-}
-
-// OPARequest is used to query OPA
-type OPARequest struct {
-	// OPA expects field called "input" to contain input payload
-	Input interface{} `json:"input"`
-}
-
-// OPAResponse unmarshals the response from OPA into a generic untyped structure
-type OPAResponse map[string]interface{}
-
-// Allow determine if policy is allowed
-func (o OPAResponse) Allow() bool {
-	allow, ok := o["allow"].(bool)
-	if !ok {
-		return false
-	}
-	return allow
-}
-
-// Obligations parses the returned obligations and returns them in standard format
-func (o OPAResponse) Obligations() (*ObligationsNode, error) {
-	if obIfc, ok := o[string(ObKey)]; ok {
-		return parseOPAObligations(obIfc)
-	}
-	return nil, nil
-}
-
-func redactJWT(jwt string) string {
-	parts := strings.Split(jwt, ".")
-	if len(parts) > 0 {
-		parts[len(parts)-1] = REDACTED
-	}
-	return strings.Join(parts, ".")
-}
-
-func redactJWTForDebug(jwt string) string {
-	parts := strings.Split(jwt, ".")
-	// Redact signature, header and body since we do not want to display any for debug logging
-	for i := range parts {
-		parts[i] = parts[i][:min(len(parts[i]), 16)] + "/" + REDACTED
-	}
-	return strings.Join(parts, ".")
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func shortenPayloadForDebug(full Payload) Payload {
-	// This is a shallow copy
-	shorten := Payload(full)
-	shorten.JWT = redactJWTForDebug(shorten.JWT)
-	return shorten
-}
-
-func addObligations(ctx context.Context, opaResp OPAResponse) (context.Context, error) {
-	ob, err := opaResp.Obligations()
-	if ob != nil {
-		ctx = context.WithValue(ctx, ObKey, ob)
-	}
-	return ctx, err
 }

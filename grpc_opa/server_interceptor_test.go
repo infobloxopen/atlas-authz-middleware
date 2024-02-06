@@ -19,6 +19,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 
+	az "github.com/infobloxopen/atlas-authz-middleware/common/authorizer"
+	commonClaim "github.com/infobloxopen/atlas-authz-middleware/common/claim"
+	"github.com/infobloxopen/atlas-authz-middleware/common/opautil"
 	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
 	"github.com/infobloxopen/atlas-authz-middleware/utils_test"
 )
@@ -43,8 +46,8 @@ func TestConnFailure(t *testing.T) {
 		return nil, nil
 	}
 	interceptor := UnaryServerInterceptor("app",
-		WithHTTPClient(&http.Client{Transport: &connFailTransport{},}),
-		WithClaimsVerifier(NullClaimsVerifier),
+		WithHTTPClient(&http.Client{Transport: &connFailTransport{}}),
+		WithClaimsVerifier(commonClaim.NullClaimsVerifier),
 	)
 
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(3*time.Second))
@@ -68,7 +71,7 @@ func TestMockOPA(t *testing.T) {
 	mock := new(mockAuthorizer)
 	interceptor := UnaryServerInterceptor("app",
 		WithAuthorizer(mock),
-		WithClaimsVerifier(NullClaimsVerifier),
+		WithClaimsVerifier(commonClaim.NullClaimsVerifier),
 	)
 
 	deadline := time.Now().Add(3 * time.Second)
@@ -82,7 +85,7 @@ func TestMockOPA(t *testing.T) {
 	}{
 		{
 			code: codes.Internal,
-			fn: func(ctx context.Context, fullMethodName string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
+			fn: func(ctx context.Context, fullMethodName string, grpcReq interface{}, opaEvaluator az.OpaEvaluator) (bool, context.Context, error) {
 				return false, ctx, grpc.Errorf(codes.Internal, "boom")
 			},
 			errMsg: "boom",
@@ -103,10 +106,10 @@ func TestMockOPA(t *testing.T) {
 
 type mockAuthorizer struct {
 	DefaultAuthorizer
-	evaluate func(ctx context.Context, fullMethod string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error)
+	evaluate func(ctx context.Context, fullMethod string, grpcReq interface{}, opaEvaluator az.OpaEvaluator) (bool, context.Context, error)
 }
 
-func (m *mockAuthorizer) Evaluate(ctx context.Context, fullMethod string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
+func (m *mockAuthorizer) Evaluate(ctx context.Context, fullMethod string, grpcReq interface{}, opaEvaluator az.OpaEvaluator) (bool, context.Context, error) {
 	return m.evaluate(ctx, fullMethod, grpcReq, opaEvaluator)
 }
 
@@ -118,7 +121,7 @@ func TestStreamServerInterceptorMockAuthorizer(t *testing.T) {
 	mock := new(mockAuthorizer)
 	interceptor := StreamServerInterceptor("app",
 		WithAuthorizer(mock),
-		WithClaimsVerifier(NullClaimsVerifier),
+		WithClaimsVerifier(commonClaim.NullClaimsVerifier),
 	)
 
 	deadline := time.Now().Add(3 * time.Second)
@@ -132,7 +135,7 @@ func TestStreamServerInterceptorMockAuthorizer(t *testing.T) {
 	}{
 		{
 			code: codes.Internal,
-			fn: func(ctx context.Context, fullMethodName string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
+			fn: func(ctx context.Context, fullMethodName string, grpcReq interface{}, opaEvaluator az.OpaEvaluator) (bool, context.Context, error) {
 				return false, ctx, grpc.Errorf(codes.Internal, "boom")
 			},
 			errMsg: "boom",
@@ -164,13 +167,13 @@ func (m mockAuthorizerWithAllowOpaEvaluator) String() string {
 	return fmt.Sprintf("mockAuthorizerWithAllowOpaEvaluator{defAuther:%s}", m.defAuther.String())
 }
 
-func (a *mockAuthorizerWithAllowOpaEvaluator) Evaluate(ctx context.Context, fullMethod string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
+func (a *mockAuthorizerWithAllowOpaEvaluator) Evaluate(ctx context.Context, fullMethod string, grpcReq interface{}, opaEvaluator az.OpaEvaluator) (bool, context.Context, error) {
 	return a.defAuther.Evaluate(ctx, fullMethod, grpcReq, opaEvaluator)
 }
 
 func (m *mockAuthorizerWithAllowOpaEvaluator) OpaQuery(ctx context.Context, decisionDocument string, opaReq, opaResp interface{}) error {
 	t, _ := ctx.Value(utils_test.TestingTContextKey).(*testing.T)
-	_, ok := opaReq.(Payload)
+	_, ok := opaReq.(opautil.Payload)
 	allow := "true"
 	if !ok {
 		allow = "false"
@@ -192,7 +195,7 @@ func (m badDecisionInputer) String() string {
 	return "badDecisionInputer{}"
 }
 
-func (m *badDecisionInputer) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*DecisionInput, error) {
+func (m *badDecisionInputer) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*az.DecisionInput, error) {
 	return nil, fmt.Errorf("badDecisionInputer")
 }
 
@@ -202,7 +205,7 @@ func (m jsonMarshalableInputer) String() string {
 	return "jsonMarshalableInputer{}"
 }
 
-func (m *jsonMarshalableInputer) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*DecisionInput, error) {
+func (m *jsonMarshalableInputer) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*az.DecisionInput, error) {
 	var sealctx []interface{}
 	sealctx = append(sealctx, map[string]interface{}{
 		"id":   "guid1",
@@ -234,9 +237,9 @@ func (m jsonNonMarshalableInputer) String() string {
 	return "jsonNonMarshalableInputer{}"
 }
 
-func (m *jsonNonMarshalableInputer) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*DecisionInput, error) {
+func (m *jsonNonMarshalableInputer) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*az.DecisionInput, error) {
 	var sealctx []interface{}
-	sealctx = append(sealctx, NullClaimsVerifier) // NullClaimsVerifier is a non-json-marshalable fn)
+	sealctx = append(sealctx, commonClaim.NullClaimsVerifier) // commonClaim.NullClaimsVerifier is a non-json-marshalable fn)
 
 	inp, _ := defDecisionInputer.GetDecisionInput(ctx, fullMethod, grpcReq)
 	inp.SealCtx = sealctx
@@ -246,12 +249,12 @@ func (m *jsonNonMarshalableInputer) GetDecisionInput(ctx context.Context, fullMe
 
 func TestDecisionInput(t *testing.T) {
 	testMap := []struct {
-		err       error
-		abacType  string
-		abacVerb  string
-		inputer   DecisionInputHandler
-		jwtHeader string
-		errLogMsg string
+		err             error
+		abacType        string
+		abacVerb        string
+		inputer         az.DecisionInputHandler
+		jwtHeader       string
+		errLogMsg       string
 		authorizerField string
 	}{
 		{
@@ -268,8 +271,8 @@ func TestDecisionInput(t *testing.T) {
 			abacVerb: "jump",
 			inputer:  new(jsonNonMarshalableInputer),
 			// fake svc-svc jwt with fake signature
-			jwtHeader: "bearer eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzZXJ2aWNlIjoiZm9vLXNlcnZpY2UiLCJhdWQiOiJmb28tYXVkaWVuY2UiLCJleHAiOjIzOTg4NzI3NzgsImp0aSI6ImZvby1qdGkiLCJpYXQiOjE1MzUzMjE0MDcsImlzcyI6ImZvby1pc3N1ZXIiLCJuYmYiOjE1MzUzMjE0MDd9.4zcNzRrhIXN3s6jNYWIbe6TRBaOwTh_Yy1iSCqVW9H4pT3p2c23TSsLq6R2zs-xmsZ5jTUvalpQgPJwbFmdvxA",
-			errLogMsg: `unable_authorize`,
+			jwtHeader:       "bearer eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzZXJ2aWNlIjoiZm9vLXNlcnZpY2UiLCJhdWQiOiJmb28tYXVkaWVuY2UiLCJleHAiOjIzOTg4NzI3NzgsImp0aSI6ImZvby1qdGkiLCJpYXQiOjE1MzUzMjE0MDcsImlzcyI6ImZvby1pc3N1ZXIiLCJuYmYiOjE1MzUzMjE0MDd9.4zcNzRrhIXN3s6jNYWIbe6TRBaOwTh_Yy1iSCqVW9H4pT3p2c23TSsLq6R2zs-xmsZ5jTUvalpQgPJwbFmdvxA",
+			errLogMsg:       `unable_authorize`,
 			authorizerField: `mockAuthorizerWithAllowOpaEvaluator{defAuther:grpc_opa_middleware.DefaultAuthorizer{application:"myapplication" clienter:opa_client.Client{address:"http://localhost:8181"} decisionInputHandler:jsonNonMarshalableInputer{}}}`,
 		},
 		{
@@ -278,8 +281,8 @@ func TestDecisionInput(t *testing.T) {
 			abacVerb: "swim",
 			inputer:  new(badDecisionInputer),
 			// empty jwt with fake signature
-			jwtHeader: "bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.A5mVf-_pE0XM6RlWnNx4YBzFWqYIcsc3_j1g9I2768c",
-			errLogMsg: `unable_authorize`,
+			jwtHeader:       "bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.A5mVf-_pE0XM6RlWnNx4YBzFWqYIcsc3_j1g9I2768c",
+			errLogMsg:       `unable_authorize`,
 			authorizerField: `mockAuthorizerWithAllowOpaEvaluator{defAuther:grpc_opa_middleware.DefaultAuthorizer{application:"myapplication" clienter:opa_client.Client{address:"http://localhost:8181"} decisionInputHandler:badDecisionInputer{}}}`,
 		},
 	}
@@ -296,7 +299,7 @@ func TestDecisionInput(t *testing.T) {
 		interceptor := UnaryServerInterceptor("app",
 			WithAuthorizer(mockAuthzer),
 			WithDecisionInputHandler(mockInputer),
-			WithClaimsVerifier(NullClaimsVerifier),
+			WithClaimsVerifier(commonClaim.NullClaimsVerifier),
 		)
 
 		headers := map[string]string{
@@ -305,8 +308,8 @@ func TestDecisionInput(t *testing.T) {
 
 		ctx := context.Background()
 		ctx = context.WithValue(ctx, utils_test.TestingTContextKey, t)
-		ctx = context.WithValue(ctx, TypeKey, tm.abacType)
-		ctx = context.WithValue(ctx, VerbKey, tm.abacVerb)
+		ctx = context.WithValue(ctx, az.TypeKey, tm.abacType)
+		ctx = context.WithValue(ctx, az.VerbKey, tm.abacVerb)
 		ctx = ctxlogrus.ToContext(ctx, logrus.NewEntry(logrus.StandardLogger()))
 		ctx = metadata.NewIncomingContext(ctx, metadata.New(headers))
 
@@ -378,7 +381,7 @@ func TestStreamServerInterceptorMockOpaClient(t *testing.T) {
 		}
 		interceptor := StreamServerInterceptor("app",
 			WithOpaClienter(mockOpaClienter),
-			WithClaimsVerifier(NullClaimsVerifier),
+			WithClaimsVerifier(commonClaim.NullClaimsVerifier),
 		)
 
 		gotErr := interceptor(ctx, &srvStream,

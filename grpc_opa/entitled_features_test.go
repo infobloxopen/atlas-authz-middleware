@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"sort"
 	"testing"
+
+	"github.com/infobloxopen/atlas-authz-middleware/common/opautil"
 )
 
 const (
@@ -19,7 +21,7 @@ const (
 
 func Test_entitled_features_context(t *testing.T) {
 	for idx, tst := range entitledFeaturesTest {
-		var opaResp OPAResponse
+		var opaResp opautil.OPAResponse
 
 		jsonErr := json.Unmarshal([]byte(tst.regoRespJSON), &opaResp)
 		if jsonErr != nil {
@@ -33,13 +35,13 @@ func Test_entitled_features_context(t *testing.T) {
 		ctx := context.Background()
 		newCtx := opaResp.AddRawEntitledFeatures(ctx)
 
-		efIfc := newCtx.Value(EntitledFeaturesKey)
+		efIfc := newCtx.Value(opautil.EntitledFeaturesKey)
 		if tst.expectNilCtxVal && efIfc != nil {
 			t.Errorf("tst#%d: FAIL: Got unexpected context.Value(%s): %#v",
-				idx, string(EntitledFeaturesKey), efIfc)
+				idx, string(opautil.EntitledFeaturesKey), efIfc)
 		} else if !tst.expectNilCtxVal && efIfc == nil {
 			t.Errorf("tst#%d: FAIL: Expected non-nil context.Value(%s), but got nil",
-				idx, string(EntitledFeaturesKey))
+				idx, string(opautil.EntitledFeaturesKey))
 		}
 
 		efArr, flattenErr := FlattenRawEntitledFeatures(efIfc)
@@ -237,7 +239,7 @@ func Test_opbench_ToJSONBArrStmt(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var opaResp OPAResponse
+			var opaResp opautil.OPAResponse
 			jsonErr := json.Unmarshal([]byte(tt.rego), &opaResp)
 			if jsonErr != nil {
 				t.Fatalf("JSON unmarshal error passing data: %s", tt.rego)

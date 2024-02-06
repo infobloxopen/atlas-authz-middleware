@@ -1,11 +1,84 @@
-package grpc_opa_middleware
+package httpopa
 
 import (
 	"net/http"
+	"slices"
+	"strings"
 
 	az "github.com/infobloxopen/atlas-authz-middleware/common/authorizer"
 	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
+	"github.com/sirupsen/logrus"
 )
+
+type DefaultModifyConfig struct {
+	SegmentsNeeded int
+	SegmentStart   int
+	Prefix         string
+}
+
+type EndpointModifier struct {
+	DefaultModifyConfig
+	Modify func(string) string
+}
+
+func (e *EndpointModifier) defaultModify(endpoint string) string {
+	segments := strings.Split(endpoint, "/")
+	verb := segments[0]
+	shortSegments := segments[e.SegmentStart : e.SegmentStart+e.SegmentsNeeded]
+	if len(e.Prefix) > 0 {
+		shortSegments = slices.Insert(shortSegments, 0, e.Prefix)
+	}
+	shortSegments = slices.Insert(shortSegments, 0, verb)
+	return strings.Join(shortSegments, "/")
+}
+
+func (e *EndpointModifier) getModifiedEndpoint(endpoint string) string {
+	if e.Modify == nil {
+		return e.defaultModify(endpoint)
+	}
+	return e.Modify(endpoint)
+}
+
+type Config struct {
+	httpCli *http.Client
+	// address to opa
+	address string
+
+	clienter             opa_client.Clienter
+	opaEvaluator         az.OpaEvaluator
+	authorizer           []az.Authorizer
+	decisionInputHandler az.DecisionInputHandler
+	claimsVerifier       az.ClaimsVerifier
+	entitledServices     []string
+	acctEntitlementsApi  string
+	endpointModifier     *EndpointModifier
+}
+
+func (c Config) GetAuthorizer() []az.Authorizer {
+	return c.authorizer
+}
+
+// NewDefaultConfig returns a new default Config for Http Authorizer.
+func NewDefaultConfig(application string, opts ...Option) *Config {
+	cfg := &Config{
+		address: opa_client.DefaultAddress,
+	}
+
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	opts = append([]Option{WithOpaClienter(opa_client.New(cfg.address, opa_client.WithHTTPClient(cfg.httpCli)))}, opts...)
+
+	authorizer := NewHttpAuthorizer(application, opts...)
+
+	if cfg.authorizer == nil {
+		logrus.Info("authorizers empty, using default authorizer")
+		cfg.authorizer = []az.Authorizer{authorizer}
+	}
+
+	return cfg
+}
 
 type Option func(c *Config)
 
@@ -78,5 +151,12 @@ func WithEntitledServices(entitledServices ...string) Option {
 func WithAcctEntitlementsApiPath(acctEntitlementsApi string) Option {
 	return func(c *Config) {
 		c.acctEntitlementsApi = acctEntitlementsApi
+	}
+}
+
+// WithAcctSegmentsNeeded overrides default 0
+func WithEndpointModifier(modifier *EndpointModifier) Option {
+	return func(c *Config) {
+		c.endpointModifier = modifier
 	}
 }

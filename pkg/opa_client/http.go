@@ -89,7 +89,7 @@ func (c Client) String() string {
 
 // Address retrieves the protocol://address of server
 func (c *Client) Address() string {
-	return fmt.Sprintf("%s", c.address)
+	return c.address
 }
 
 func (c *Client) Health() error {
