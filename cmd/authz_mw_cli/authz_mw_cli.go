@@ -108,6 +108,7 @@ func validate(ctx context.Context, opaIpPort string) {
 	var decInputr MyDecisionInputr
 	decInputr.DecisionInput.DecisionDocument = decisionDoc
 
+	//TODO: add a flag to indicate whether to use http authorizer or grpc authorizer, when grpc authorizer is implemented in v2
 	authzr := httpopa.NewHttpAuthorizer(app,
 		httpopa.WithAddress(opaIpPort),
 		httpopa.WithDecisionInputHandler(&decInputr),
