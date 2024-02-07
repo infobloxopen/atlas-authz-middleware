@@ -14,7 +14,7 @@ import (
 	"regexp"
 	"strings"
 
-	opamw "github.com/infobloxopen/atlas-authz-middleware/v2/grpc_opa"
+	 "github.com/infobloxopen/atlas-authz-middleware/v2/http_opa"
 	opacl "github.com/infobloxopen/atlas-authz-middleware/v2/pkg/opa_client"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
@@ -108,9 +108,9 @@ func validate(ctx context.Context, opaIpPort string) {
 	var decInputr MyDecisionInputr
 	decInputr.DecisionInput.DecisionDocument = decisionDoc
 
-	authzr := opamw.NewDefaultAuthorizer(app,
-		opamw.WithAddress(opaIpPort),
-		opamw.WithDecisionInputHandler(&decInputr),
+	authzr := httpopa.NewHttpAuthorizer(app,
+		httpopa.WithAddress(opaIpPort),
+		httpopa.WithDecisionInputHandler(&decInputr),
 	)
 
 	resultCtx, resultErr := authzr.AffirmAuthorization(ctx, fullMethod, nil)

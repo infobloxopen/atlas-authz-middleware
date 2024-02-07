@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	az "github.com/infobloxopen/atlas-authz-middleware/v2/common/authorizer"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/http_opa/exception"
 
 	sqlcompiler "github.com/infobloxopen/seal/pkg/compiler/sql"
 )
@@ -88,7 +89,7 @@ var obligationsNodeTests = []struct {
 		expectedSQL:  ``,
 	},
 	{
-		expectedErr: ErrInvalidObligations,
+		expectedErr: exception.ErrAbstrInvalidObligations,
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": "bad obligations value"
@@ -98,7 +99,7 @@ var obligationsNodeTests = []struct {
 		expectedSQL:  ``,
 	},
 	{
-		expectedErr: ErrInvalidObligations,
+		expectedErr: exception.ErrAbstrInvalidObligations,
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": [ "bad obligations value" ]
@@ -108,7 +109,7 @@ var obligationsNodeTests = []struct {
 		expectedSQL:  ``,
 	},
 	{
-		expectedErr: ErrInvalidObligations,
+		expectedErr: exception.ErrAbstrInvalidObligations,
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": [ [ 3.14 ] ]
@@ -118,7 +119,7 @@ var obligationsNodeTests = []struct {
 		expectedSQL:  ``,
 	},
 	{
-		expectedErr: ErrInvalidObligations,
+		expectedErr: exception.ErrAbstrInvalidObligations,
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": { "abac.policy1_guid": "bad obligations value" }
@@ -128,7 +129,7 @@ var obligationsNodeTests = []struct {
 		expectedSQL:  ``,
 	},
 	{
-		expectedErr: ErrInvalidObligations,
+		expectedErr: exception.ErrAbstrInvalidObligations,
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": { "abac.bad_obligations_value": [ 3.14 ]}
@@ -138,7 +139,7 @@ var obligationsNodeTests = []struct {
 		expectedSQL:  ``,
 	},
 	{
-		expectedErr: ErrInvalidObligations,
+		expectedErr: exception.ErrAbstrInvalidObligations,
 		regoRespJSON: `{
 			"allow": true,
 			"obligations": { "abac.policy1_guid": { "stmt0": "bad obligations value" }}

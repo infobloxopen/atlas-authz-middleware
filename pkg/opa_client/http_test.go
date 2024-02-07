@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"io/ioutil"
+	"net/http"
 	"reflect"
 	"syscall"
 	"testing"
 
 	"github.com/infobloxopen/atlas-authz-middleware/v2/common/authorizer"
 	"github.com/infobloxopen/atlas-authz-middleware/v2/common/claim"
-	opamw "github.com/infobloxopen/atlas-authz-middleware/v2/grpc_opa"
+	httpopa "github.com/infobloxopen/atlas-authz-middleware/v2/http_opa"
 	"github.com/infobloxopen/atlas-authz-middleware/v2/pkg/opa_client"
 	"github.com/infobloxopen/atlas-authz-middleware/v2/utils_test"
 
@@ -94,21 +95,29 @@ func TestPolicyReturningRegoSet(t *testing.T) {
 	}
 
 	mockDecInp := &MockDecisionInputer{}
-	auther := opamw.NewDefaultAuthorizer("app",
-		opamw.WithOpaClienter(cli),
-		opamw.WithDecisionInputHandler(mockDecInp),
-		opamw.WithClaimsVerifier(claim.NullClaimsVerifier),
+	auther := httpopa.NewHttpAuthorizer("app",
+		httpopa.WithOpaClienter(cli),
+		httpopa.WithDecisionInputHandler(mockDecInp),
+		httpopa.WithClaimsVerifier(claim.NullClaimsVerifier),
 	)
 
 	// If authorization is permitted, then this verifies that the OPA JSON results were correctly decoded,
 	// and this verifies that the rego set result is returned by OPA as a JSON array result.
-	resultCtx, resultErr := auther.AffirmAuthorization(ctx, "FakeMethod", nil)
+	resultCtx, resultErr := auther.AffirmAuthorization(ctx, "FakeMethod", getHttpRequest())
 	if resultErr != nil {
 		t.Errorf("AffirmAuthorization err: %#v", resultErr)
 	}
 	if resultCtx == nil {
 		t.Error("AffirmAuthorization returned nil context")
 	}
+}
+
+func getHttpRequest() *http.Request {
+	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	req.Header.Set("Authorization", "Bearer token")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Request-Id", "123")
+	return req
 }
 
 func TestCustomQuery(t *testing.T) {

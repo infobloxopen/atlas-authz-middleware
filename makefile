@@ -1,5 +1,6 @@
 .PHONY:	test
 test:
+	go mod vendor
 	go vet ./...
 	go test ./...
 

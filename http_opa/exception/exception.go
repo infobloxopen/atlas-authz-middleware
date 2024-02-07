@@ -14,6 +14,7 @@ var (
 	ErrAbstrInternal            = generateAbstrErr("internal", "internal error")
 	ErrAbstrAuthHeaderMissing   = generateAbstrErr("authHeaderMissing", "Authorization header is missing")
 	ErrAbstrAuthHeaderMalformed = generateAbstrErr("authHeaderMalformed", "Authorization header is malformed")
+	ErrAbstrInvalidObligations  = generateAbstrErr("internal", "invalid obligations")
 )
 
 func generateAbstrErr(code, msg string) error {

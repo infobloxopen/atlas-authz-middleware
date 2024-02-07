@@ -19,4 +19,6 @@ type Authorizer interface {
 	// OpaQuery executes query of the specified decisionDocument against OPA.
 	// If decisionDocument is "", then the query is executed against the default decision document configured in OPA.
 	OpaQuery(ctx context.Context, decisionDocument string, opaReq, opaResp interface{}) error
+	
+	AffirmAuthorization(ctx context.Context, fullMethod string, eq interface{}) (context.Context, error)
 }

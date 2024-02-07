@@ -232,3 +232,30 @@ func (a *httpAuthorizer) OpaQuery(ctx context.Context, decisionDocument string, 
 	logger.WithField("opaResp", opaResp).Debug("opa_policy_engine_response")
 	return nil
 }
+
+// AffirmAuthorization makes an authz request to sidecar-OPA.
+// If authorization is permitted, error returned is nil,
+// and a new context is returned, possibly containing obligations.
+// Caller must further evaluate obligations if required.
+func (a *httpAuthorizer) AffirmAuthorization(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
+	logger := ctxlogrus.Extract(ctx)
+	var (
+		ok     bool
+		newCtx context.Context
+		err    error
+	)
+
+	ok, newCtx, err = a.Evaluate(ctx, fullMethod, req, a.OpaQuery)
+	if err != nil {
+		logger.WithError(err).WithField("authorizer", a).Error("unable_authorize")
+		return nil, err
+	}
+
+	if !ok {
+		err = opa_client.ErrUndefined
+		logger.WithError(err).Error("policy engine returned undefined response")
+		return nil, err
+	}
+
+	return newCtx, nil
+}

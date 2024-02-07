@@ -3,7 +3,8 @@ package opautil
 import (
 	"strings"
 
-	"github.com/infobloxopen/seal/pkg/compiler/sql"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/http_opa/exception"
+	sqlcompiler "github.com/infobloxopen/seal/pkg/compiler/sql"
 )
 
 // ToSQLPredicate recursively converts obligations node tree into SQL predicate
@@ -15,11 +16,11 @@ func (o8n *ObligationsNode) ToSQLPredicate(sqlc *sqlcompiler.SQLCompiler) (strin
 		}
 		return AddOuterParens(singleSQL), nil
 	} else if (o8n.Kind != ObligationsAnd) && (o8n.Kind != ObligationsOr) {
-		return "", ErrInvalidObligations
+		return "", exception.ErrAbstrInvalidObligations
 	}
 
 	if len(o8n.Children) <= 0 {
-		return "", ErrInvalidObligations
+		return "", exception.ErrAbstrInvalidObligations
 	}
 
 	childSQLArr := make([]string, 0, len(o8n.Children))
