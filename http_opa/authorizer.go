@@ -3,6 +3,7 @@ package httpopa
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -16,7 +17,6 @@ import (
 	"github.com/infobloxopen/atlas-authz-middleware/v2/http_opa/util"
 	"github.com/infobloxopen/atlas-authz-middleware/v2/pkg/opa_client"
 	log "github.com/sirupsen/logrus"
-	"go.uber.org/multierr"
 )
 
 // SERVICENAME is the name of the OPA service.
@@ -89,7 +89,7 @@ func (a *httpAuthorizer) Evaluate(ctx context.Context, endpoint string, req inte
 	rawJWT, errs := claimsVerifier([]string{bearer}, nil)
 	if len(errs) > 0 {
 		return false, ctx, exception.NewHttpError(
-			exception.WithError(multierr.Combine(errs...)),
+			exception.WithError(errors.Join(errs...)),
 			exception.WithHttpStatus(http.StatusUnauthorized))
 	}
 
