@@ -1,17 +1,12 @@
-package grpc_opa_middleware
+package opautil
 
 import (
 	"encoding/json"
 	"sort"
 	"strings"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-)
-
-var (
-	// ErrInvalidObligations is returned upon invalid obligations
-	ErrInvalidObligations = status.Errorf(codes.Internal, "Invalid obligations")
+	"github.com/infobloxopen/atlas-authz-middleware/v2/common"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/http_opa/exception"
 )
 
 // ObligationsEnum enumerates the different kinds of ObligationsNode
@@ -135,7 +130,7 @@ func (o8n *ObligationsNode) DeepSort() {
 
 // parseOPAObligations parses the obligations returned from OPA
 // and returns them in standard format.
-func parseOPAObligations(opaObligations interface{}) (*ObligationsNode, error) {
+func ParseOPAObligations(opaObligations interface{}) (*ObligationsNode, error) {
 	if opaObligations == nil {
 		return nil, nil
 	}
@@ -149,13 +144,13 @@ func parseOPAObligations(opaObligations interface{}) (*ObligationsNode, error) {
 		return parseObligationsMap(mapIfc)
 	}
 
-	return nil, ErrInvalidObligations
+	return nil, exception.ErrAbstrInvalidObligations
 }
 
 // obligations json.Unmarshal()'d as type:
 // []interface {}{[]interface {}{"ctx.metric == \"dhcp\""}}
 func parseObligationsArray(arrIfc []interface{}) (*ObligationsNode, error) {
-	if IsNilInterface(arrIfc) {
+	if common.IsNilInterface(arrIfc) {
 		return nil, nil
 	}
 
@@ -164,7 +159,7 @@ func parseObligationsArray(arrIfc []interface{}) (*ObligationsNode, error) {
 	}
 
 	for _, subIfc := range arrIfc {
-		if IsNilInterface(subIfc) {
+		if common.IsNilInterface(subIfc) {
 			continue
 		}
 
@@ -174,13 +169,13 @@ func parseObligationsArray(arrIfc []interface{}) (*ObligationsNode, error) {
 
 		subArrIfc, ok := subIfc.([]interface{})
 		if !ok {
-			return nil, ErrInvalidObligations
+			return nil, exception.ErrAbstrInvalidObligations
 		}
 
 		for _, itemIfc := range subArrIfc {
 			s, ok := itemIfc.(string)
 			if !ok {
-				return nil, ErrInvalidObligations
+				return nil, exception.ErrAbstrInvalidObligations
 			}
 
 			leafNode := &ObligationsNode{
@@ -210,7 +205,7 @@ func parseObligationsArray(arrIfc []interface{}) (*ObligationsNode, error) {
 // obligations json.Unmarshal()'d as type:
 // map[string]interface {}{"policy1_guid":map[string]interface {}{"stmt0":[]interface {}{"ctx.metric == \"dhcp\""}}}
 func parseObligationsMap(mapIfc map[string]interface{}) (*ObligationsNode, error) {
-	if IsNilInterface(mapIfc) {
+	if common.IsNilInterface(mapIfc) {
 		return nil, nil
 	}
 
@@ -219,7 +214,7 @@ func parseObligationsMap(mapIfc map[string]interface{}) (*ObligationsNode, error
 	}
 
 	for policyName, subIfc := range mapIfc {
-		if IsNilInterface(subIfc) {
+		if common.IsNilInterface(subIfc) {
 			continue
 		}
 
@@ -229,7 +224,7 @@ func parseObligationsMap(mapIfc map[string]interface{}) (*ObligationsNode, error
 
 		stmtMapIfc, ok := subIfc.(map[string]interface{})
 		if !ok {
-			return nil, ErrInvalidObligations
+			return nil, exception.ErrAbstrInvalidObligations
 		}
 
 		policyNode := &ObligationsNode{
@@ -240,7 +235,7 @@ func parseObligationsMap(mapIfc map[string]interface{}) (*ObligationsNode, error
 		for stmtName, stmtIfc := range stmtMapIfc {
 			subArrIfc, ok := stmtIfc.([]interface{})
 			if !ok {
-				return nil, ErrInvalidObligations
+				return nil, exception.ErrAbstrInvalidObligations
 			}
 
 			stmtNode := &ObligationsNode{
@@ -251,7 +246,7 @@ func parseObligationsMap(mapIfc map[string]interface{}) (*ObligationsNode, error
 			for _, itemIfc := range subArrIfc {
 				s, ok := itemIfc.(string)
 				if !ok {
-					return nil, ErrInvalidObligations
+					return nil, exception.ErrAbstrInvalidObligations
 				}
 
 				leafNode := &ObligationsNode{

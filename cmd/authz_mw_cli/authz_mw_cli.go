@@ -14,14 +14,15 @@ import (
 	"regexp"
 	"strings"
 
-	opamw "github.com/infobloxopen/atlas-authz-middleware/grpc_opa"
-	opacl "github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
+	 "github.com/infobloxopen/atlas-authz-middleware/v2/http_opa"
+	opacl "github.com/infobloxopen/atlas-authz-middleware/v2/pkg/opa_client"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/grpc-ecosystem/go-grpc-middleware/util/metautils"
 
 	logrus "github.com/sirupsen/logrus"
 
+	az "github.com/infobloxopen/atlas-authz-middleware/v2/common/authorizer"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -107,9 +108,10 @@ func validate(ctx context.Context, opaIpPort string) {
 	var decInputr MyDecisionInputr
 	decInputr.DecisionInput.DecisionDocument = decisionDoc
 
-	authzr := opamw.NewDefaultAuthorizer(app,
-		opamw.WithAddress(opaIpPort),
-		opamw.WithDecisionInputHandler(&decInputr),
+	//TODO: add a flag to indicate whether to use http authorizer or grpc authorizer, when grpc authorizer is implemented in v2
+	authzr := httpopa.NewHttpAuthorizer(app,
+		httpopa.WithAddress(opaIpPort),
+		httpopa.WithDecisionInputHandler(&decInputr),
 	)
 
 	resultCtx, resultErr := authzr.AffirmAuthorization(ctx, fullMethod, nil)
@@ -139,9 +141,9 @@ func acct_entitlements(ctx context.Context, opaIpPort string) {
 }
 
 type MyDecisionInputr struct {
-	opamw.DecisionInput
+	az.DecisionInput
 }
 
-func (d MyDecisionInputr) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*opamw.DecisionInput, error) {
+func (d MyDecisionInputr) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*az.DecisionInput, error) {
 	return &d.DecisionInput, nil
 }

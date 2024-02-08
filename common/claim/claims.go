@@ -1,4 +1,4 @@
-package grpc_opa_middleware
+package claim
 
 import (
 	atlas_claims "github.com/infobloxopen/atlas-claims"

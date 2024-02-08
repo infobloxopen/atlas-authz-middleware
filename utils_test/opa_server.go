@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/pkg/opa_client"
 
 	"github.com/open-policy-agent/opa/plugins"
 	"github.com/open-policy-agent/opa/server"

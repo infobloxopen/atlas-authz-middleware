@@ -4,13 +4,16 @@ import (
 	"context"
 	"errors"
 	"io/ioutil"
+	"net/http"
 	"reflect"
 	"syscall"
 	"testing"
 
-	opamw "github.com/infobloxopen/atlas-authz-middleware/grpc_opa"
-	"github.com/infobloxopen/atlas-authz-middleware/pkg/opa_client"
-	"github.com/infobloxopen/atlas-authz-middleware/utils_test"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/common/authorizer"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/common/claim"
+	httpopa "github.com/infobloxopen/atlas-authz-middleware/v2/http_opa"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/pkg/opa_client"
+	"github.com/infobloxopen/atlas-authz-middleware/v2/utils_test"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	logrus "github.com/sirupsen/logrus"
@@ -92,21 +95,29 @@ func TestPolicyReturningRegoSet(t *testing.T) {
 	}
 
 	mockDecInp := &MockDecisionInputer{}
-	auther := opamw.NewDefaultAuthorizer("app",
-		opamw.WithOpaClienter(cli),
-		opamw.WithDecisionInputHandler(mockDecInp),
-		opamw.WithClaimsVerifier(opamw.NullClaimsVerifier),
+	auther := httpopa.NewHttpAuthorizer("app",
+		httpopa.WithOpaClienter(cli),
+		httpopa.WithDecisionInputHandler(mockDecInp),
+		httpopa.WithClaimsVerifier(claim.NullClaimsVerifier),
 	)
 
 	// If authorization is permitted, then this verifies that the OPA JSON results were correctly decoded,
 	// and this verifies that the rego set result is returned by OPA as a JSON array result.
-	resultCtx, resultErr := auther.AffirmAuthorization(ctx, "FakeMethod", nil)
+	resultCtx, resultErr := auther.AffirmAuthorization(ctx, "FakeMethod", getHttpRequest())
 	if resultErr != nil {
 		t.Errorf("AffirmAuthorization err: %#v", resultErr)
 	}
 	if resultCtx == nil {
 		t.Error("AffirmAuthorization returned nil context")
 	}
+}
+
+func getHttpRequest() *http.Request {
+	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	req.Header.Set("Authorization", "Bearer token")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Request-Id", "123")
+	return req
 }
 
 func TestCustomQuery(t *testing.T) {
@@ -220,8 +231,8 @@ func (m MockDecisionInputer) String() string {
 	return "opa_client_test.MockDecisionInputer{}"
 }
 
-func (m *MockDecisionInputer) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*opamw.DecisionInput, error) {
-	decInp := opamw.DecisionInput{
+func (m *MockDecisionInputer) GetDecisionInput(ctx context.Context, fullMethod string, grpcReq interface{}) (*authorizer.DecisionInput, error) {
+	decInp := authorizer.DecisionInput{
 		DecisionDocument: "/v1/data/policy_returning_set/get_results",
 	}
 	return &decInp, nil
