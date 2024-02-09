@@ -144,9 +144,12 @@ func NewDefaultAuthorizer(application string, opts ...Option) *DefaultAuthorizer
 		claimsVerifier:       cfg.claimsVerifier,
 		entitledServices:     cfg.entitledServices,
 		acctEntitlementsApi:  cfg.acctEntitlementsApi,
+		extraInputFields:     cfg.extraInputFields,
 	}
 	return &a
 }
+
+type ExtraInputFields map[string]interface{}
 
 type DefaultAuthorizer struct {
 	application          string
@@ -156,6 +159,7 @@ type DefaultAuthorizer struct {
 	claimsVerifier       ClaimsVerifier
 	entitledServices     []string
 	acctEntitlementsApi  string
+	extraInputFields     ExtraInputFields
 }
 
 type Config struct {
@@ -170,6 +174,7 @@ type Config struct {
 	claimsVerifier       ClaimsVerifier
 	entitledServices     []string
 	acctEntitlementsApi  string
+	extraInputFields     ExtraInputFields
 }
 
 type ClaimsVerifier func([]string, []string) (string, []error)
@@ -221,6 +226,7 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 		JWT:              redactJWT(rawJWT),
 		RequestID:        reqID,
 		EntitledServices: a.entitledServices,
+		ExtraInputFields: a.extraInputFields,
 	}
 
 	decisionInput, err := a.decisionInputHandler.GetDecisionInput(ctx, fullMethod, grpcReq)
@@ -407,6 +413,7 @@ type Payload struct {
 	RequestID        string   `json:"request_id"`
 	EntitledServices []string `json:"entitled_services"`
 	DecisionInput
+	ExtraInputFields `json:"extra,omitempty"`
 }
 
 // OPARequest is used to query OPA

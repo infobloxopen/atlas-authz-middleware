@@ -79,3 +79,23 @@ func WithAcctEntitlementsApiPath(acctEntitlementsApi string) Option {
 		c.acctEntitlementsApi = acctEntitlementsApi
 	}
 }
+
+// WithExtraInputFields merges extra input fields, can be called multiple times
+func WithExtraInputFields(extra ExtraInputFields) Option {
+	return func(c *Config) {
+		if extra == nil || len(extra) <= 0 {
+			return
+		}
+		if c.extraInputFields == nil {
+			c.extraInputFields = ExtraInputFields{}
+		}
+		for key, val := range extra {
+			c.extraInputFields[key] = val
+		}
+	}
+}
+
+// WithExtraInputField merges extra input field, can be called multiple times
+func WithExtraInputField(name string, value interface{}) Option {
+	return WithExtraInputFields(ExtraInputFields{name: value})
+}

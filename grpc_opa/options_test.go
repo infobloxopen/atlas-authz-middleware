@@ -15,37 +15,37 @@ func Test_WithEntitledServices_payload(t *testing.T) {
 	var uninitializedStrSlice []string
 	withEntitledServicesTests := []struct {
 		name                   string
-		inputEntitledServices  interface{}
+		configEntitledServices interface{}
 		expectEntitledServices []string
 	}{
 		{
 			name:                   `dont-call-WithEntitledServices`,
-			inputEntitledServices:  `dont-call-WithEntitledServices`,
+			configEntitledServices: `dont-call-WithEntitledServices`,
 			expectEntitledServices: nil,
 		},
 		{
 			name:                   `WithEntitledServices(nil)`,
-			inputEntitledServices:  nil,
+			configEntitledServices: nil,
 			expectEntitledServices: nil,
 		},
 		{
 			name:                   `WithEntitledServices(uninitializedStrSlice)`,
-			inputEntitledServices:  uninitializedStrSlice,
+			configEntitledServices: uninitializedStrSlice,
 			expectEntitledServices: nil,
 		},
 		{
 			name:                   `WithEntitledServices([])`,
-			inputEntitledServices:  []string{},
+			configEntitledServices: []string{},
 			expectEntitledServices: []string{},
 		},
 		{
 			name:                   `WithEntitledServices(["lic"])`,
-			inputEntitledServices:  []string{"lic"},
+			configEntitledServices: []string{"lic"},
 			expectEntitledServices: []string{"lic"},
 		},
 		{
 			name:                   `WithEntitledServices(["lic","rpz"])`,
-			inputEntitledServices:  []string{"lic", "rpz"},
+			configEntitledServices: []string{"lic", "rpz"},
 			expectEntitledServices: []string{"lic", "rpz"},
 		},
 	}
@@ -66,14 +66,79 @@ func Test_WithEntitledServices_payload(t *testing.T) {
 			WithClaimsVerifier(NullClaimsVerifier),
 		)
 
-		inputEntitledServices, ok := tstc.inputEntitledServices.([]string)
-		if tstc.inputEntitledServices == nil || ok {
+		configEntitledServices, ok := tstc.configEntitledServices.([]string)
+		if tstc.configEntitledServices == nil || ok {
 			t.Logf("tst#%d: name=%s; calling option WithEntitledServices(%#v)",
-				idx, tstc.name, inputEntitledServices)
+				idx, tstc.name, configEntitledServices)
 			auther = NewDefaultAuthorizer("app",
 				WithOpaClienter(&mockOpaClienter),
 				WithClaimsVerifier(NullClaimsVerifier),
-				WithEntitledServices(inputEntitledServices...),
+				WithEntitledServices(configEntitledServices...),
+			)
+		}
+
+		auther.AffirmAuthorization(tcCtx, "FakeMethod", nil)
+	}
+}
+
+func Test_WithExtraInputFields_payload(t *testing.T) {
+	var uninitializedExtraInputFields ExtraInputFields
+	withExtraInputFieldsTests := []struct {
+		name                   string
+		configExtraInputFields interface{}
+		expectExtraInputFields ExtraInputFields
+	}{
+		{
+			name:                   `dont-call-WithExtraInputFields`,
+			configExtraInputFields: `dont-call-WithExtraInputFields`,
+			expectExtraInputFields: nil,
+		},
+		{
+			name:                   `WithExtraInputFields(nil)`,
+			configExtraInputFields: nil,
+			expectExtraInputFields: nil,
+		},
+		{
+			name:                   `WithExtraInputFields(uninitializedExtraInputFields)`,
+			configExtraInputFields: uninitializedExtraInputFields,
+			expectExtraInputFields: nil,
+		},
+		{
+			name:                   `WithExtraInputFields(ExtraInputFields{})`,
+			configExtraInputFields: ExtraInputFields{},
+			expectExtraInputFields: nil,
+		},
+		{
+			name:                   `WithExtraInputFields(ExtraInputFields{name:val})`,
+			configExtraInputFields: ExtraInputFields{"k1": "v1", "k2": true, "k3": 123},
+			expectExtraInputFields: ExtraInputFields{"k1": "v1", "k2": true, "k3": 123},
+		},
+	}
+
+	testingTCtx := context.WithValue(context.Background(), utils_test.TestingTContextKey, t)
+
+	for idx, tstc := range withExtraInputFieldsTests {
+		tcCtx := context.WithValue(testingTCtx, utils_test.TestCaseIndexContextKey, idx)
+		tcCtx = context.WithValue(tcCtx, utils_test.TestCaseNameContextKey, tstc.name)
+
+		mockOpaClienter := optionsMockOpaClienter{
+			VerifyExtraInputFields: true,
+			ExpectExtraInputFields: tstc.expectExtraInputFields,
+		}
+
+		auther := NewDefaultAuthorizer("app",
+			WithOpaClienter(&mockOpaClienter),
+			WithClaimsVerifier(NullClaimsVerifier),
+		)
+
+		configExtraInputFields, ok := tstc.configExtraInputFields.(ExtraInputFields)
+		if tstc.configExtraInputFields == nil || ok {
+			t.Logf("tst#%d: name=%s; calling option WithExtraInputFields(%#v)",
+				idx, tstc.name, configExtraInputFields)
+			auther = NewDefaultAuthorizer("app",
+				WithOpaClienter(&mockOpaClienter),
+				WithClaimsVerifier(NullClaimsVerifier),
+				WithExtraInputFields(configExtraInputFields),
 			)
 		}
 
@@ -84,6 +149,9 @@ func Test_WithEntitledServices_payload(t *testing.T) {
 type optionsMockOpaClienter struct {
 	VerifyEntitledServices bool
 	ExpectEntitledServices []string
+
+	VerifyExtraInputFields bool
+	ExpectExtraInputFields ExtraInputFields
 }
 
 func (m optionsMockOpaClienter) String() string {
@@ -119,6 +187,10 @@ func (m optionsMockOpaClienter) CustomQuery(ctx context.Context, document string
 	if m.VerifyEntitledServices && !reflect.DeepEqual(payload.EntitledServices, m.ExpectEntitledServices) {
 		t.Errorf("tst#%d: FAIL: name=%s; not equal: payload.EntitledServices=%#v; m.ExpectEntitledServices=%#v",
 			tcIdx, tcName, payload.EntitledServices, m.ExpectEntitledServices)
+	}
+	if m.VerifyExtraInputFields && !reflect.DeepEqual(payload.ExtraInputFields, m.ExpectExtraInputFields) {
+		t.Errorf("tst#%d: FAIL: name=%s; not equal: payload.ExtraInputFields=%#v; m.ExpectExtraInputFields=%#v",
+			tcIdx, tcName, payload.ExtraInputFields, m.ExpectExtraInputFields)
 	}
 	return json.Unmarshal([]byte(`{"allow": true}`), resp)
 }
