@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	ErrForbidden          = NewHttpError(WithError(ErrAbstrForbidden), WithHttpStatus(http.StatusUnauthorized))
+	ErrForbidden          = NewHttpError(WithError(ErrAbstrForbidden), WithHttpStatus(http.StatusForbidden))
 	ErrUnknown            = NewHttpError(WithError(ErrAbstrUnknown), WithHttpStatus(http.StatusInternalServerError))
 	ErrInvalidArg         = NewHttpError(WithError(ErrAbstrInvalidArg), WithHttpStatus(http.StatusBadRequest))
 	ErrServiceUnavailable = NewHttpError(WithError(ErrAbstrServiceUnavailable), WithHttpStatus(http.StatusServiceUnavailable))
