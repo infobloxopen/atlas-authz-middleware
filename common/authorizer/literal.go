@@ -8,6 +8,12 @@ const (
 	// DefaultValidatePath is default OPA path to perform authz validation
 	DefaultValidatePath = "v1/data/authz/rbac/validate_v1"
 
+	// DefaultAcctEntitlementsApiPath is default OPA path to fetch acct entitlements
+	DefaultAcctEntitlementsApiPath = "v1/data/authz/rbac/acct_entitlements_api"
+
+	// DefaultCurrentUserCompartmentsPath is default OPA path to fetch current user's compartments
+	DefaultCurrentUserCompartmentsPath = "v1/data/authz/rbac/current_user_compartments"
+
 	REDACTED = "redacted"
 	TypeKey  = ABACKey("ABACType")
 	VerbKey  = ABACKey("ABACVerb")

@@ -7,6 +7,10 @@ type OpaEvaluator func(ctx context.Context, decisionDocument string, opaReq, opa
 
 type ClaimsVerifier func([]string, []string) (string, []error)
 
+// AcctEntitlementsType is a convenience data type, returned by GetAcctEntitlements()
+// (map of acct_id to map of service to array of features)
+type AcctEntitlementsType map[string]map[string][]string
+
 // Authorizer interface is implemented for making arbitrary requests to Opa.
 type Authorizer interface {
 	// Evaluate evaluates the authorization policy for the given request.
@@ -23,4 +27,8 @@ type Authorizer interface {
 	OpaQuery(ctx context.Context, decisionDocument string, opaReq, opaResp interface{}) error
 
 	AffirmAuthorization(ctx context.Context, fullMethod string, eq interface{}) (context.Context, error)
+
+	GetAcctEntitlements(ctx context.Context, accountIDs, serviceNames []string) (*AcctEntitlementsType, error)
+
+	GetCurrentUserCompartments(ctx context.Context) ([]string, error)
 }

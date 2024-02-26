@@ -44,14 +44,15 @@ type Config struct {
 	// address to opa
 	address string
 
-	clienter             opa_client.Clienter
-	opaEvaluator         az.OpaEvaluator
-	authorizer           []az.Authorizer
-	decisionInputHandler az.DecisionInputHandler
-	claimsVerifier       az.ClaimsVerifier
-	entitledServices     []string
-	acctEntitlementsApi  string
-	endpointModifier     *EndpointModifier
+	clienter                opa_client.Clienter
+	opaEvaluator            az.OpaEvaluator
+	authorizer              []az.Authorizer
+	decisionInputHandler    az.DecisionInputHandler
+	claimsVerifier          az.ClaimsVerifier
+	entitledServices        []string
+	acctEntitlementsApi     string
+	currUserCompartmentsApi string
+	endpointModifier        *EndpointModifier
 }
 
 func (c Config) GetAuthorizer() []az.Authorizer {
@@ -151,6 +152,13 @@ func WithEntitledServices(entitledServices ...string) Option {
 func WithAcctEntitlementsApiPath(acctEntitlementsApi string) Option {
 	return func(c *Config) {
 		c.acctEntitlementsApi = acctEntitlementsApi
+	}
+}
+
+// WithCurrentUserCompartmentsPath overrides default CurrentUserCompartmentsApiPath
+func WithCurrentUserCompartmentsPath(currUserCompartmentsApi string) Option {
+	return func(c *Config) {
+		c.currUserCompartmentsApi = currUserCompartmentsApi
 	}
 }
 
