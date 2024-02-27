@@ -78,3 +78,33 @@ func (mr *MockAuthorizerMockRecorder) OpaQuery(ctx, decisionDocument, opaReq, op
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpaQuery", reflect.TypeOf((*MockAuthorizer)(nil).OpaQuery), ctx, decisionDocument, opaReq, opaResp)
 }
+
+// GetAcctEntitlements mocks base method.
+func (m *MockAuthorizer) GetAcctEntitlements(ctx context.Context, accountIDs, serviceNames []string) (*AcctEntitlementsType, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAcctEntitlements", ctx)
+	ret0, _ := ret[0].(*AcctEntitlementsType)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAcctEntitlements indicates an expected call of GetAcctEntitlements.
+func (mr *MockAuthorizerMockRecorder) GetAcctEntitlements(ctx context.Context, accountIDs, serviceNames []string) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAcctEntitlements", reflect.TypeOf((*MockAuthorizer)(nil).GetAcctEntitlements), ctx, accountIDs, serviceNames)
+}
+
+// GetCurrentUserCompartments mocks base method.
+func (m *MockAuthorizer) GetCurrentUserCompartments(ctx context.Context) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCurrentUserCompartments", ctx)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCurrentUserCompartments indicates an expected call of GetCurrentUserCompartments.
+func (mr *MockAuthorizerMockRecorder) GetCurrentUserCompartments(ctx context.Context) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCurrentUserCompartments", reflect.TypeOf((*MockAuthorizer)(nil).GetCurrentUserCompartments), ctx)
+}
