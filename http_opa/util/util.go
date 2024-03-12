@@ -9,7 +9,9 @@ import (
 )
 
 const (
-	DefaultRequestIDKey = "X-Request-ID"
+	DefaultRequestIDKey     = "X-Request-ID"
+	BearerPrefix            = "Bearer "
+	AuthorizationHeaderName = "Authorization"
 )
 
 // GetRequestIdFromRequest fetches requestid from http request
@@ -21,15 +23,15 @@ func GetRequestIdFromRequest(r *http.Request) string {
 	return uuid.NewString()
 }
 
-// GetBearerFromRequest fetches requestid from http request
+// GetBearerFromRequest fetches the first available bearer token from the request header.
 func GetBearerFromRequest(r *http.Request) (string, error) {
-	authHead := r.Header.Get("Authorization")
-	if len(authHead) == 0 {
-		return authHead, exception.ErrAbstrAuthHeaderMissing
+	authHead := r.Header.Values(AuthorizationHeaderName)
+	for _, auth := range authHead {
+		token, isBearer := strings.CutPrefix(auth, BearerPrefix)
+		if isBearer {
+			return token, nil
+		}
 	}
-	authHeadArr := strings.Split(authHead, " ")
-	if len(authHeadArr) != 2 {
-		return authHead, exception.ErrAbstrAuthHeaderMalformed
-	}
-	return authHeadArr[1], nil
+
+	return "", exception.ErrAbstrAuthHeaderMissing
 }
