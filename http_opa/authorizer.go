@@ -109,7 +109,7 @@ func (a *httpAuthorizer) Evaluate(ctx context.Context, endpoint string, req inte
 		Endpoint:         pargsEndpoint,
 		FullMethod:       endpoint,
 		Application:      a.application,
-		JWT:              opautil.RedactJWT(rawJWT),
+		JWT:              rawJWT,
 		RequestID:        reqID,
 		EntitledServices: a.entitledServices,
 	}
