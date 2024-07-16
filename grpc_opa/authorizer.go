@@ -174,7 +174,8 @@ type Config struct {
 
 type ClaimsVerifier func([]string, []string) (string, []error)
 
-// 	FullMethod is the full RPC method string, i.e., /package.service/method.
+//	FullMethod is the full RPC method string, i.e., /package.service/method.
+//
 // e.g. fullmethod:  /service.TagService/ListRetiredTags PARGs endpoint: TagService.ListRetiredTags
 func parseEndpoint(fullMethod string) string {
 	byPackage := strings.Split(fullMethod, ".")
@@ -218,7 +219,7 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 		FullMethod:  fullMethod,
 		Application: a.application,
 		// FIXME: implement atlas_claims.AuthBearersFromCtx
-		JWT:              redactJWT(rawJWT),
+		JWT:              rawJWT,
 		RequestID:        reqID,
 		EntitledServices: a.entitledServices,
 	}
