@@ -79,3 +79,17 @@ func WithAcctEntitlementsApiPath(acctEntitlementsApi string) Option {
 		c.acctEntitlementsApi = acctEntitlementsApi
 	}
 }
+
+// WithFilterComparmentPermissionsApiPath overrides default CurrentUserCompartmentsApiPath
+func WithFilterComparmentPermissionsApiPath(filterCompartmentPermsApi string) Option {
+	return func(c *Config) {
+		c.filterCompartmentPermsApi = filterCompartmentPermsApi
+	}
+}
+
+// WithFilterComparmentFeaturesApiPath overrides default CurrentUserCompartmentsApiPath
+func WithFilterComparmentFeaturesApiPath(filterCompartmentFeatsApi string) Option {
+	return func(c *Config) {
+		c.filterCompartmentFeatsApi = filterCompartmentFeatsApi
+	}
+}
