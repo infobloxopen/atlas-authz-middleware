@@ -23,15 +23,17 @@ var SERVICENAME = "opa"
 
 // httpAuthorizer is an implementation of the az.Authorizer interface for HTTP-based authorization using OPA.
 type httpAuthorizer struct {
-	application             string
-	clienter                opa_client.Clienter
-	opaEvaluator            az.OpaEvaluator
-	decisionInputHandler    az.DecisionInputHandler
-	claimsVerifier          az.ClaimsVerifier
-	entitledServices        []string
-	acctEntitlementsApi     string
-	currUserCompartmentsApi string
-	endpointModifier        *EndpointModifier
+	application               string
+	clienter                  opa_client.Clienter
+	opaEvaluator              az.OpaEvaluator
+	decisionInputHandler      az.DecisionInputHandler
+	claimsVerifier            az.ClaimsVerifier
+	entitledServices          []string
+	acctEntitlementsApi       string
+	currUserCompartmentsApi   string
+	filterCompartmentPermsApi string
+	filterCompartmentFeatsApi string
+	endpointModifier          *EndpointModifier
 }
 
 var defDecisionInputer = new(az.DefaultDecisionInputer)
@@ -40,11 +42,13 @@ var defDecisionInputer = new(az.DefaultDecisionInputer)
 func NewHttpAuthorizer(application string, opts ...Option) az.Authorizer {
 	// Configuration options for the authorizer
 	cfg := &Config{
-		address:                 opa_client.DefaultAddress,
-		decisionInputHandler:    defDecisionInputer,
-		claimsVerifier:          commonClaim.UnverifiedClaimFromBearers,
-		acctEntitlementsApi:     az.DefaultAcctEntitlementsApiPath,
-		currUserCompartmentsApi: az.DefaultCurrentUserCompartmentsPath,
+		address:                   opa_client.DefaultAddress,
+		decisionInputHandler:      defDecisionInputer,
+		claimsVerifier:            commonClaim.UnverifiedClaimFromBearers,
+		acctEntitlementsApi:       az.DefaultAcctEntitlementsApiPath,
+		currUserCompartmentsApi:   az.DefaultCurrentUserCompartmentsPath,
+		filterCompartmentPermsApi: az.DefaultFilterCompartmentPermissionsApiPath,
+		filterCompartmentFeatsApi: az.DefaultFilterCompartmentFeaturesApiPath,
 	}
 	for _, opt := range opts {
 		opt(cfg)
@@ -56,15 +60,17 @@ func NewHttpAuthorizer(application string, opts ...Option) az.Authorizer {
 	}
 
 	a := httpAuthorizer{
-		clienter:                clienter,
-		opaEvaluator:            cfg.opaEvaluator,
-		application:             application,
-		decisionInputHandler:    cfg.decisionInputHandler,
-		claimsVerifier:          cfg.claimsVerifier,
-		entitledServices:        cfg.entitledServices,
-		acctEntitlementsApi:     cfg.acctEntitlementsApi,
-		currUserCompartmentsApi: cfg.currUserCompartmentsApi,
-		endpointModifier:        cfg.endpointModifier,
+		clienter:                  clienter,
+		opaEvaluator:              cfg.opaEvaluator,
+		application:               application,
+		decisionInputHandler:      cfg.decisionInputHandler,
+		claimsVerifier:            cfg.claimsVerifier,
+		entitledServices:          cfg.entitledServices,
+		acctEntitlementsApi:       cfg.acctEntitlementsApi,
+		currUserCompartmentsApi:   cfg.currUserCompartmentsApi,
+		filterCompartmentPermsApi: cfg.filterCompartmentPermsApi,
+		filterCompartmentFeatsApi: cfg.filterCompartmentFeatsApi,
+		endpointModifier:          cfg.endpointModifier,
 	}
 	return &a
 }

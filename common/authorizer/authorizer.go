@@ -11,6 +11,14 @@ type ClaimsVerifier func([]string, []string) (string, []error)
 // (map of acct_id to map of service to array of features)
 type AcctEntitlementsType map[string]map[string][]string
 
+// FilterCompartmentPermissionsType is a convenience data type, returned by FilterCompartmentPermissions()
+// (map of application to array of permissions)
+type FilterCompartmentPermissionsType []string
+
+// FilterCompartmentFeaturesType is a convenience data type, returned by FilterCompartmentFeatures()
+// (map of application to array of feature)
+type FilterCompartmentFeaturesType map[string][]string
+
 // Authorizer interface is implemented for making arbitrary requests to Opa.
 type Authorizer interface {
 	// Evaluate evaluates the authorization policy for the given request.
@@ -31,4 +39,8 @@ type Authorizer interface {
 	GetAcctEntitlements(ctx context.Context, accountIDs, serviceNames []string) (*AcctEntitlementsType, error)
 
 	GetCurrentUserCompartments(ctx context.Context) ([]string, error)
+
+	FilterCompartmentPermissions(ctx context.Context, permissions FilterCompartmentPermissionsType) (FilterCompartmentPermissionsType, error)
+
+	FilterCompartmentFeatures(ctx context.Context, features FilterCompartmentFeaturesType) (FilterCompartmentFeaturesType, error)
 }

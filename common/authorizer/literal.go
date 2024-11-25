@@ -14,6 +14,12 @@ const (
 	// DefaultCurrentUserCompartmentsPath is default OPA path to fetch current user's compartments
 	DefaultCurrentUserCompartmentsPath = "v1/data/authz/rbac/current_user_compartments"
 
+	// DefaultFilterCompartmentPermissionsApiPath is default OPA path to filter compartment permissions
+	DefaultFilterCompartmentPermissionsApiPath = "v1/data/authz/rbac/filter_compartment_permissions_api"
+
+	// DefaultFilterCompartmentFeaturesApiPath is default OPA path to filter compartment features
+	DefaultFilterCompartmentFeaturesApiPath = "v1/data/authz/rbac/filter_compartment_features_api"
+
 	REDACTED = "redacted"
 	TypeKey  = ABACKey("ABACType")
 	VerbKey  = ABACKey("ABACVerb")

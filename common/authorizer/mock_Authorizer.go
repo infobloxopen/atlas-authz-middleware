@@ -108,3 +108,33 @@ func (mr *MockAuthorizerMockRecorder) GetCurrentUserCompartments(ctx context.Con
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCurrentUserCompartments", reflect.TypeOf((*MockAuthorizer)(nil).GetCurrentUserCompartments), ctx)
 }
+
+// FilterCompartmentPermissions mocks base method.
+func (m *MockAuthorizer) FilterCompartmentPermissions(ctx context.Context, permissions FilterCompartmentPermissionsType) (FilterCompartmentPermissionsType, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FilterCompartmentPermissions", ctx)
+	ret0, _ := ret[0].(FilterCompartmentPermissionsType)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FilterCompartmentPermissions indicates an expected call of FilterCompartmentPermissions.
+func (mr *MockAuthorizerMockRecorder) FilterCompartmentPermissions(ctx context.Context, permissions FilterCompartmentPermissionsType) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FilterCompartmentPermissions", reflect.TypeOf((*MockAuthorizer)(nil).FilterCompartmentPermissions), ctx, permissions)
+}
+
+// FilterCompartmentFeatures mocks base method.
+func (m *MockAuthorizer) FilterCompartmentFeatures(ctx context.Context, features FilterCompartmentFeaturesType) (FilterCompartmentFeaturesType, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FilterCompartmentFeatures", ctx)
+	ret0, _ := ret[0].(FilterCompartmentFeaturesType)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FilterCompartmentFeatures indicates an expected call of FilterCompartmentFeatures.
+func (mr *MockAuthorizerMockRecorder) FilterCompartmentFeatures(ctx context.Context, features FilterCompartmentFeaturesType) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FilterCompartmentFeatures", reflect.TypeOf((*MockAuthorizer)(nil).FilterCompartmentFeatures), ctx, features)
+}
