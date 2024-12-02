@@ -120,10 +120,13 @@ func (a AuthorizeFn) Evaluate(ctx context.Context, fullMethod string, grpcReq in
 
 func NewDefaultAuthorizer(application string, opts ...Option) *DefaultAuthorizer {
 	cfg := &Config{
-		address:              opa_client.DefaultAddress,
-		decisionInputHandler: defDecisionInputer,
-		claimsVerifier:       UnverifiedClaimFromBearers,
-		acctEntitlementsApi:  DefaultAcctEntitlementsApiPath,
+		address:                   opa_client.DefaultAddress,
+		decisionInputHandler:      defDecisionInputer,
+		claimsVerifier:            UnverifiedClaimFromBearers,
+		acctEntitlementsApi:       DefaultAcctEntitlementsApiPath,
+		currUserCompartmentsApi:   DefaultCurrentUserCompartmentsPath,
+		filterCompartmentPermsApi: DefaultFilterCompartmentPermissionsApiPath,
+		filterCompartmentFeatsApi: DefaultFilterCompartmentFeaturesApiPath,
 	}
 	for _, opt := range opts {
 		opt(cfg)
@@ -137,25 +140,31 @@ func NewDefaultAuthorizer(application string, opts ...Option) *DefaultAuthorizer
 	}
 
 	a := DefaultAuthorizer{
-		clienter:             clienter,
-		opaEvaluator:         cfg.opaEvaluator,
-		application:          application,
-		decisionInputHandler: cfg.decisionInputHandler,
-		claimsVerifier:       cfg.claimsVerifier,
-		entitledServices:     cfg.entitledServices,
-		acctEntitlementsApi:  cfg.acctEntitlementsApi,
+		clienter:                  clienter,
+		opaEvaluator:              cfg.opaEvaluator,
+		application:               application,
+		decisionInputHandler:      cfg.decisionInputHandler,
+		claimsVerifier:            cfg.claimsVerifier,
+		entitledServices:          cfg.entitledServices,
+		acctEntitlementsApi:       cfg.acctEntitlementsApi,
+		currUserCompartmentsApi:   cfg.currUserCompartmentsApi,
+		filterCompartmentPermsApi: cfg.filterCompartmentPermsApi,
+		filterCompartmentFeatsApi: cfg.filterCompartmentFeatsApi,
 	}
 	return &a
 }
 
 type DefaultAuthorizer struct {
-	application          string
-	clienter             opa_client.Clienter
-	opaEvaluator         OpaEvaluator
-	decisionInputHandler DecisionInputHandler
-	claimsVerifier       ClaimsVerifier
-	entitledServices     []string
-	acctEntitlementsApi  string
+	application               string
+	clienter                  opa_client.Clienter
+	opaEvaluator              OpaEvaluator
+	decisionInputHandler      DecisionInputHandler
+	claimsVerifier            ClaimsVerifier
+	entitledServices          []string
+	acctEntitlementsApi       string
+	currUserCompartmentsApi   string
+	filterCompartmentPermsApi string
+	filterCompartmentFeatsApi string
 }
 
 type Config struct {
@@ -163,13 +172,16 @@ type Config struct {
 	// address to opa
 	address string
 
-	clienter             opa_client.Clienter
-	opaEvaluator         OpaEvaluator
-	authorizer           []Authorizer
-	decisionInputHandler DecisionInputHandler
-	claimsVerifier       ClaimsVerifier
-	entitledServices     []string
-	acctEntitlementsApi  string
+	clienter                  opa_client.Clienter
+	opaEvaluator              OpaEvaluator
+	authorizer                []Authorizer
+	decisionInputHandler      DecisionInputHandler
+	claimsVerifier            ClaimsVerifier
+	entitledServices          []string
+	acctEntitlementsApi       string
+	currUserCompartmentsApi   string
+	filterCompartmentPermsApi string
+	filterCompartmentFeatsApi string
 }
 
 type ClaimsVerifier func([]string, []string) (string, []error)
@@ -438,6 +450,7 @@ func (o OPAResponse) Obligations() (*ObligationsNode, error) {
 
 func redactJWT(jwt string) string {
 	parts := strings.Split(jwt, ".")
+	// Redact signature
 	if len(parts) > 0 {
 		parts[len(parts)-1] = REDACTED
 	}
@@ -446,7 +459,7 @@ func redactJWT(jwt string) string {
 
 func redactJWTForDebug(jwt string) string {
 	parts := strings.Split(jwt, ".")
-	// Redact signature, header and body since we do not want to display any for debug logging
+	// Redact header/payload/signature, since we do not want to display any for debug logging
 	for i := range parts {
 		parts[i] = parts[i][:min(len(parts[i]), 16)] + "/" + REDACTED
 	}
