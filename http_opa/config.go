@@ -44,15 +44,17 @@ type Config struct {
 	// address to opa
 	address string
 
-	clienter                opa_client.Clienter
-	opaEvaluator            az.OpaEvaluator
-	authorizer              []az.Authorizer
-	decisionInputHandler    az.DecisionInputHandler
-	claimsVerifier          az.ClaimsVerifier
-	entitledServices        []string
-	acctEntitlementsApi     string
-	currUserCompartmentsApi string
-	endpointModifier        *EndpointModifier
+	clienter                  opa_client.Clienter
+	opaEvaluator              az.OpaEvaluator
+	authorizer                []az.Authorizer
+	decisionInputHandler      az.DecisionInputHandler
+	claimsVerifier            az.ClaimsVerifier
+	entitledServices          []string
+	acctEntitlementsApi       string
+	currUserCompartmentsApi   string
+	filterCompartmentPermsApi string
+	filterCompartmentFeatsApi string
+	endpointModifier          *EndpointModifier
 }
 
 func (c Config) GetAuthorizer() []az.Authorizer {
@@ -159,6 +161,20 @@ func WithAcctEntitlementsApiPath(acctEntitlementsApi string) Option {
 func WithCurrentUserCompartmentsPath(currUserCompartmentsApi string) Option {
 	return func(c *Config) {
 		c.currUserCompartmentsApi = currUserCompartmentsApi
+	}
+}
+
+// WithFilterComparmentPermissionsApiPath overrides default CurrentUserCompartmentsApiPath
+func WithFilterComparmentPermissionsApiPath(filterCompartmentPermsApi string) Option {
+	return func(c *Config) {
+		c.filterCompartmentPermsApi = filterCompartmentPermsApi
+	}
+}
+
+// WithFilterComparmentFeaturesApiPath overrides default CurrentUserCompartmentsApiPath
+func WithFilterComparmentFeaturesApiPath(filterCompartmentFeatsApi string) Option {
+	return func(c *Config) {
+		c.filterCompartmentFeatsApi = filterCompartmentFeatsApi
 	}
 }
 

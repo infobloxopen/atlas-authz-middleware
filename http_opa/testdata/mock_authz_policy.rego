@@ -136,7 +136,7 @@ group_compartment_roles := {
 	"40": {
 		"all-resources": {
 			"custom-admin-group": {
-				"root-compartment": [
+				".": [
 					"custom-admin-role",
 					"administrator-role"
 				],
@@ -146,7 +146,7 @@ group_compartment_roles := {
 				]
 			},
 			"user-group-40": {
-				"root-compartment": [
+				".": [
 					"custom-admin-role",
 					"administrator-role"
 				],
@@ -165,7 +165,7 @@ group_compartment_roles := {
 	"16": {
 		"all-resources": {
 			"custom-admin-group-16": {
-				"root-compartment": [
+				".": [
 					"custom-admin-role",
 					"administrator-role"
 				],
@@ -175,7 +175,7 @@ group_compartment_roles := {
 				]
 			},
 			"user-group-16": {
-				"root-compartment": [
+				".": [
 					"custom-admin-role",
 					"administrator-role"
 				],
@@ -194,7 +194,7 @@ group_compartment_roles := {
 	"3101": {
 		"all-resources": {
 			"devops-group": {
-				"root-compartment": [
+				".": [
 					"widget-role-read"
 				],
 				"red.": [
@@ -209,7 +209,7 @@ group_compartment_roles := {
 				]
 			},
 			"secops-group": {
-				"root-compartment": [
+				".": [
 					"gadget-role-read",
 					"gadget-role-list"
 				],
@@ -238,7 +238,7 @@ group_compartment_roles := {
 }
 
 # Well-known hardcoded root-compartment id used throughout AuthZ/Identity code
-ROOT_COMPARTMENT_ID := "root-compartment"
+ROOT_COMPARTMENT_ID := "."
 
 current_user_compartments[compartment] {
 	compartment != ROOT_COMPARTMENT_ID
@@ -260,6 +260,72 @@ test_current_user_compartments {
 		{"compartment-40-red."})
 	current_user_compartments_test_fn("40", ["custom-admin-group", "user"],
 		{"compartment-40-red.", "compartment-40-green."})
+}
+
+filter_compartment_permissions_api = filtered_perm_arr {
+	count(trim_space(merged_input.compartment_id)) > 0
+	merged_input.compartment_id != ROOT_COMPARTMENT_ID
+	filtered_perm_arr := ["filtered-perm-a", "filtered-perm-b"]
+} else = filtered_perm_arr {
+	filtered_perm_arr := input.permissions
+}
+
+filter_compartment_features_api = filtered_feat_map {
+	count(trim_space(merged_input.compartment_id)) > 0
+	merged_input.compartment_id != ROOT_COMPARTMENT_ID
+	filtered_feat_map := {
+		"filtered-app-a": ["filtered-app-a-feat-a", "filtered-app-a-feat-b"],
+		"filtered-app-b":  ["filtered-app-b-feat-a"],
+	}
+} else = filtered_feat_map {
+	filtered_feat_map := input.application_features
+}
+
+filter_compartment_permissions_test_fn(cpt_id, perm_arr, exp_set) {
+	got_set := filter_compartment_permissions_api with input as {
+		"compartment_id": cpt_id,
+		"permissions": perm_arr,
+	}
+	trace(sprintf("got_set: %v", [got_set]))
+	trace(sprintf("exp_set: %v", [exp_set]))
+	got_set == exp_set
+}
+
+filter_compartment_features_test_fn(cpt_id, app_feat_map, exp_map) {
+	got_map := filter_compartment_features_api with input as {
+		"compartment_id": cpt_id,
+		"application_features": app_feat_map,
+	}
+	trace(sprintf("got_map: %v", [got_map]))
+	trace(sprintf("exp_map: %v", [exp_map]))
+	got_map == exp_map
+}
+
+test_filter_compartment_api {
+	filter_compartment_permissions_test_fn("",
+		["user-view", "tag-read"],
+		["user-view", "tag-read"])
+
+	filter_compartment_permissions_test_fn(".",
+		["user-view", "tag-read"],
+		["user-view", "tag-read"])
+
+	filter_compartment_permissions_test_fn("green.",
+		["user-view", "tag-read"],
+		["filtered-perm-a", "filtered-perm-b"])
+
+	filter_compartment_features_test_fn("",
+		{"ddi": ["dhcp", "ipam"], "ui": ["anycast"]},
+		{"ddi": ["dhcp", "ipam"], "ui": ["anycast"]})
+
+	filter_compartment_features_test_fn(".",
+		{"ddi": ["dhcp", "ipam"], "ui": ["anycast"]},
+		{"ddi": ["dhcp", "ipam"], "ui": ["anycast"]})
+
+	filter_compartment_features_test_fn("green.",
+		{"ddi": ["dhcp", "ipam"], "ui": ["anycast"]},
+		{"filtered-app-a": ["filtered-app-a-feat-a", "filtered-app-a-feat-b"],
+		 "filtered-app-b": ["filtered-app-b-feat-a"]})
 }
 
 # opa test -v mock_authz_policy.rego

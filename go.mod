@@ -6,7 +6,7 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.3.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
-	github.com/infobloxopen/atlas-claims v1.0.0
+	github.com/infobloxopen/atlas-claims v1.1.2
 	github.com/infobloxopen/seal v0.2.3
 	github.com/open-policy-agent/opa v0.37.2
 	github.com/sirupsen/logrus v1.8.1

@@ -46,6 +46,7 @@ func (o OPAResponse) Obligations() (*ObligationsNode, error) {
 
 func RedactJWT(jwt string) string {
 	parts := strings.Split(jwt, ".")
+	// Redact signature
 	if len(parts) > 0 {
 		parts[len(parts)-1] = az.REDACTED
 	}
@@ -54,7 +55,7 @@ func RedactJWT(jwt string) string {
 
 func RedactJWTForDebug(jwt string) string {
 	parts := strings.Split(jwt, ".")
-	// Redact signature, header and body since we do not want to display any for debug logging
+	// Redact header/payload/signature, since we do not want to display any for debug logging
 	for i := range parts {
 		parts[i] = parts[i][:Min(len(parts[i]), 16)] + "/" + az.REDACTED
 	}
