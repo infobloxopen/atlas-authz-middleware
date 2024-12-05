@@ -1,6 +1,8 @@
 package authorizer
 
-import "context"
+import (
+	"context"
+)
 
 // OpaEvaluator implements calling OPA with a request and receiving the raw response
 type OpaEvaluator func(ctx context.Context, decisionDocument string, opaReq, opaResp interface{}) error
@@ -21,10 +23,16 @@ type FilterCompartmentFeaturesType map[string][]string
 
 // Authorizer interface is implemented for making arbitrary requests to Opa.
 type Authorizer interface {
+	// Validate evaluates the authorization policy for the given request.
+	// It takes the context, full method name, request object, and an OpaEvaluator as input.
+	// Unlike Evaluate, it only returns the raw Opa response, it does not parse the results.
+	Validate(ctx context.Context, fullMethod string, req interface{}, opaEvaluator OpaEvaluator) (interface{}, error)
+
 	// Evaluate evaluates the authorization policy for the given request.
 	// It takes the context, full method name, request object, and an OpaEvaluator as input.
-	// It returns a boolean indicating whether the request is authorized, a modified context,
-	// and an error if any.
+	// It parses the Opa response and returns a boolean indicating whether the request is authorized,
+	// a modified context, and an error if any.  It also parses and adds the entitled_features and obligations
+	// from Opa response in the modified context returned.
 	Evaluate(ctx context.Context, fullMethod string, req interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error)
 
 	// OpaQuery executes a query against the OPA (Open Policy Agent) with the specified decision document.

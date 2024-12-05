@@ -82,11 +82,45 @@ func (a *httpAuthorizer) Evaluate(ctx context.Context, endpoint string, req inte
 		"application": a.application,
 	})
 
+	rawResp, err := a.Validate(ctx, endpoint, req, opaEvaluator)
+	if err != nil {
+		return false, ctx, err
+	}
+	opaResp, ok := rawResp.(opautil.OPAResponse)
+	if !ok {
+		return false, ctx, exception.ErrUnknown
+	}
+
+	// Add raw entitled_features data to the context
+	//REVIEW: is it needed for http?
+	ctx = opaResp.AddRawEntitledFeatures(ctx)
+
+	// Add obligations data to the context
+	//REVIEW: is it needed for http?
+	ctx, err = opautil.AddObligations(ctx, opaResp)
+	if err != nil {
+		logger.WithField("opaResp", fmt.Sprintf("%#v", opaResp)).WithError(err).Error("parse_obligations_error")
+	}
+
+	// Check if the authorization is allowed
+	if !opaResp.Allow() {
+		return false, ctx, exception.ErrForbidden
+	}
+
+	return true, ctx, nil
+}
+
+func (a *httpAuthorizer) Validate(ctx context.Context, endpoint string, req interface{}, opaEvaluator az.OpaEvaluator) (interface{}, error) {
+	// Extract the logger from the context
+	logger := ctxlogrus.Extract(ctx).WithFields(log.Fields{
+		"application": a.application,
+	})
+
 	// Get the bearer token from the request
 	bearer, err := util.GetBearerFromRequest(req.(*http.Request))
 	if err != nil {
 		logger.WithError(err).Error("get_bearer_from_request")
-		return false, ctx, exception.ErrInvalidArg
+		return nil, exception.ErrInvalidArg
 	}
 
 	// Verify the bearer token and get the raw JWT
@@ -96,7 +130,7 @@ func (a *httpAuthorizer) Evaluate(ctx context.Context, endpoint string, req inte
 	}
 	rawJWT, errs := claimsVerifier([]string{bearer}, nil)
 	if len(errs) > 0 {
-		return false, ctx, exception.NewHttpError(
+		return nil, exception.NewHttpError(
 			exception.WithError(errors.Join(errs...)),
 			exception.WithHttpStatus(http.StatusUnauthorized))
 	}
@@ -126,7 +160,7 @@ func (a *httpAuthorizer) Evaluate(ctx context.Context, endpoint string, req inte
 		logger.WithFields(log.Fields{
 			"endpoint": endpoint,
 		}).WithError(err).Error("get_decision_input")
-		return false, ctx, exception.ErrInvalidArg
+		return nil, exception.ErrInvalidArg
 	}
 
 	opaReq.DecisionInput = *decisionInput
@@ -137,7 +171,7 @@ func (a *httpAuthorizer) Evaluate(ctx context.Context, endpoint string, req inte
 	// 	logger.WithFields(log.Fields{
 	// 		"opaReq": opaReq,
 	// 	}).WithError(err).Error("opa_request_json_marshal")
-	// 	return false, ctx, exception.ErrInvalidArg
+	// 	return nil, exception.ErrInvalidArg
 	// }
 
 	now := time.Now()
@@ -177,7 +211,7 @@ func (a *httpAuthorizer) Evaluate(ctx context.Context, endpoint string, req inte
 		}).Debug("authorization_result")
 	}()
 	if err != nil {
-		return false, ctx, err
+		return nil, err
 	}
 
 	// Extract the nested result if present
@@ -201,23 +235,7 @@ func (a *httpAuthorizer) Evaluate(ctx context.Context, endpoint string, req inte
 		// }, "out")
 	}
 
-	// Add raw entitled_features data to the context
-	//REVIEW: is it needed for http?
-	ctx = opaResp.AddRawEntitledFeatures(ctx)
-
-	// Add obligations data to the context
-	//REVIEW: is it needed for http?
-	ctx, err = opautil.AddObligations(ctx, opaResp)
-	if err != nil {
-		logger.WithField("opaResp", fmt.Sprintf("%#v", opaResp)).WithError(err).Error("parse_obligations_error")
-	}
-
-	// Check if the authorization is allowed
-	if !opaResp.Allow() {
-		return false, ctx, exception.ErrForbidden
-	}
-
-	return true, ctx, nil
+	return opaResp, nil
 }
 
 // OpaQuery executes a custom OPA query with the given decision document, request, and response.

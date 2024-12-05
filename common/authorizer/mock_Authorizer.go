@@ -49,6 +49,21 @@ func (mr *MockAuthorizerMockRecorder) AffirmAuthorization(ctx, fullMethod, eq in
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AffirmAuthorization", reflect.TypeOf((*MockAuthorizer)(nil).AffirmAuthorization), ctx, fullMethod, eq)
 }
 
+// Validate mocks base method.
+func (m *MockAuthorizer) Validate(ctx context.Context, fullMethod string, req interface{}, opaEvaluator OpaEvaluator) (interface{}, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Validate", ctx, fullMethod, req, opaEvaluator)
+	ret0, _ := ret[0].(interface{})
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Validate indicates an expected call of Validate.
+func (mr *MockAuthorizerMockRecorder) Validate(ctx, fullMethod, req, opaEvaluator interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Validate", reflect.TypeOf((*MockAuthorizer)(nil).Validate), ctx, fullMethod, req, opaEvaluator)
+}
+
 // Evaluate mocks base method.
 func (m *MockAuthorizer) Evaluate(ctx context.Context, fullMethod string, req interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
 	m.ctrl.T.Helper()
