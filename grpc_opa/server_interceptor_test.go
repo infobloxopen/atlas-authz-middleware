@@ -164,6 +164,10 @@ func (m mockAuthorizerWithAllowOpaEvaluator) String() string {
 	return fmt.Sprintf("mockAuthorizerWithAllowOpaEvaluator{defAuther:%s}", m.defAuther.String())
 }
 
+func (a *mockAuthorizerWithAllowOpaEvaluator) Validate(ctx context.Context, fullMethod string, grpcReq interface{}, opaEvaluator OpaEvaluator) (interface{}, error) {
+	return a.defAuther.Validate(ctx, fullMethod, grpcReq, opaEvaluator)
+}
+
 func (a *mockAuthorizerWithAllowOpaEvaluator) Evaluate(ctx context.Context, fullMethod string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
 	return a.defAuther.Evaluate(ctx, fullMethod, grpcReq, opaEvaluator)
 }
