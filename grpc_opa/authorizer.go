@@ -96,11 +96,18 @@ type OpaEvaluator func(ctx context.Context, decisionDocument string, opaReq, opa
 
 // Authorizer interface is implemented for making arbitrary requests to Opa.
 type Authorizer interface {
+	// Validate is called with the grpc request's method passing the grpc request Context.
+	// If the handler is executed, the request will be sent to Opa.
+	// Unlike Evaluate, it only returns the raw Opa response, it does not parse the results.
+	Validate(ctx context.Context, fullMethod string, grpcReq interface{}, opaEvaluator OpaEvaluator) (interface{}, error)
+
 	// Evaluate is called with the grpc request's method passing the grpc request Context.
 	// If the handler is executed, the request will be sent to Opa. Opa's response
 	// will be unmarshaled using JSON into the provided response.
-	// Evaluate returns true if the request is authorized. The context
-	// will be passed to subsequent HTTP Handler.
+	// Evaluate returns true if the request is authorized.
+	// A modified context is returned containing the entitled_features and obligations
+	// parsed from the Opa response.
+	// The modified context can be passed to subsequent HTTP Handler.
 	Evaluate(ctx context.Context, fullMethod string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error)
 
 	// OpaQuery executes query of the specified decisionDocument against OPA.
@@ -201,6 +208,36 @@ func (a DefaultAuthorizer) String() string {
 }
 
 func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grpcReq interface{}, opaEvaluator OpaEvaluator) (bool, context.Context, error) {
+	logger := ctxlogrus.Extract(ctx).WithFields(log.Fields{
+		"application": a.application,
+	})
+
+	rawResp, err := a.Validate(ctx, fullMethod, grpcReq, opaEvaluator)
+	if err != nil {
+		return false, ctx, err
+	}
+	opaResp, ok := rawResp.(OPAResponse)
+	if !ok {
+		return false, ctx, ErrUnknown
+	}
+
+	// adding raw entitled_features data to context if present
+	ctx = opaResp.AddRawEntitledFeatures(ctx)
+
+	// adding obligations data to context if present
+	ctx, err = addObligations(ctx, opaResp)
+	if err != nil {
+		logger.WithField("opaResp", fmt.Sprintf("%#v", opaResp)).WithError(err).Error("parse_obligations_error")
+	}
+
+	if !opaResp.Allow() {
+		return false, ctx, ErrForbidden
+	}
+
+	return true, ctx, nil
+}
+
+func (a *DefaultAuthorizer) Validate(ctx context.Context, fullMethod string, grpcReq interface{}, opaEvaluator OpaEvaluator) (interface{}, error) {
 
 	logger := ctxlogrus.Extract(ctx).WithFields(log.Fields{
 		"application": a.application,
@@ -218,7 +255,7 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 
 	rawJWT, errs := claimsVerifier([]string{bearer}, []string{newBearer})
 	if len(errs) > 0 {
-		return false, ctx, fmt.Errorf("%q", errs)
+		return nil, fmt.Errorf("%q", errs)
 	}
 
 	reqID, ok := requestid.FromContext(ctx)
@@ -241,7 +278,7 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 		logger.WithFields(log.Fields{
 			"fullMethod": fullMethod,
 		}).WithError(err).Error("get_decision_input")
-		return false, ctx, ErrInvalidArg
+		return nil, ErrInvalidArg
 	}
 	//logger.Debugf("decisionInput=%+v", *decisionInput)
 	opaReq.DecisionInput = *decisionInput
@@ -251,7 +288,7 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 		logger.WithFields(log.Fields{
 			"opaReq": opaReq,
 		}).WithError(err).Error("opa_request_json_marshal")
-		return false, ctx, ErrInvalidArg
+		return nil, ErrInvalidArg
 	}
 
 	now := time.Now()
@@ -300,7 +337,7 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 		}).Debug("authorization_result")
 	}()
 	if err != nil {
-		return false, ctx, err
+		return nil, err
 	}
 
 	// When we POST query OPA without url path, it returns results NOT encapsulated inside "result":
@@ -329,20 +366,7 @@ func (a *DefaultAuthorizer) Evaluate(ctx context.Context, fullMethod string, grp
 		}, "out")
 	}
 
-	// adding raw entitled_features data to context if present
-	ctx = opaResp.AddRawEntitledFeatures(ctx)
-
-	// adding obligations data to context if present
-	ctx, err = addObligations(ctx, opaResp)
-	if err != nil {
-		logger.WithField("opaResp", fmt.Sprintf("%#v", opaResp)).WithError(err).Error("parse_obligations_error")
-	}
-
-	if !opaResp.Allow() {
-		return false, ctx, ErrForbidden
-	}
-
-	return true, ctx, nil
+	return opaResp, nil
 }
 
 func (a *DefaultAuthorizer) OpaQuery(ctx context.Context, decisionDocument string, opaReq, opaResp interface{}) error {
