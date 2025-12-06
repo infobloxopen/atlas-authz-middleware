@@ -9,7 +9,7 @@ require (
 	github.com/infobloxopen/atlas-claims v1.1.2
 	github.com/infobloxopen/seal v0.2.3
 	github.com/open-policy-agent/opa v0.37.2
-	github.com/sirupsen/logrus v1.8.1
+	github.com/sirupsen/logrus v1.9.3
 	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd
 	google.golang.org/grpc v1.44.0
 )
