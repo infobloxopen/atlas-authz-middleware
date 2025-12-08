@@ -2,6 +2,7 @@ package opa_client_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"net/http"
@@ -153,20 +154,33 @@ func TestCustomQuery(t *testing.T) {
 		return
 	}
 
+	// If OPA POST request body does NOT contain 'input' key,
+	// OPA will now add api_usage_warning "'input key' missing from the request"
+	// to the OPA POST response.
+	// This warning was added to OPA in v0.39.0:
+	// https://github.com/open-policy-agent/opa/releases/tag/v0.39.0
+	// https://github.com/open-policy-agent/opa/issues/4386
+	// https://github.com/open-policy-agent/opa/pull/4416
+
 	opaQry := "v1/data/custom_query_test/map_map_arr"
 
-	expectBytes := `{"result":{"2001016":{"hardware":["hdd4tb","ram32mb"],"laptop":["lenovo"],"software":["msoffice","visualstudio"]},"2001040":{"hardware":["ram64mb","ssd1tb"],"laptop":["apple"],"software":["msoffice","photoshop"]}}}`
+	////////////////////////////////////////////////////////////////
+
+	expectBytes := `{"result":{"2001016":{"hardware":["hdd4tb","ram32mb"],"laptop":["lenovo"],"software":["msoffice","visualstudio"]},"2001040":{"hardware":["ram64mb","ssd1tb"],"laptop":["apple"],"software":["msoffice","photoshop"]}},"warning":{"code":"api_usage_warning","message":"'input' key missing from the request"}}
+`
 
 	actualBytes, err := cli.CustomQueryBytes(ctx, opaQry, nil)
 	if err != nil {
 		t.Errorf("CustomQueryBytes FAIL: err=%#v", err)
 	}
-	t.Logf("actualBytes=%s", actualBytes)
+	t.Logf("actualBytes=`%s`", actualBytes)
 
 	if expectBytes != string(actualBytes) {
-		t.Errorf("CustomQueryBytes FAIL\nexpectBytes=%s\nactualBytes=%s",
+		t.Errorf("CustomQueryBytes FAIL\nexpectBytes=`%s`\nactualBytes=`%s`",
 			expectBytes, actualBytes)
 	}
+
+	////////////////////////////////////////////////////////////////
 
 	type typeGeneric map[string]interface{}
 	expectGeneric := typeGeneric{
@@ -182,6 +196,10 @@ func TestCustomQuery(t *testing.T) {
 				"software": []interface{}{"msoffice", "photoshop"},
 			},
 		},
+		"warning": map[string]interface{}{
+			"code":    "api_usage_warning",
+			"message": "'input' key missing from the request",
+		},
 	}
 
 	var actualGeneric typeGeneric
@@ -196,9 +214,49 @@ func TestCustomQuery(t *testing.T) {
 			expectGeneric, actualGeneric)
 	}
 
-	type typeSpecific map[string]map[string]map[string][]string
-	expectSpecific := typeSpecific{
+	////////////////////////////////////////////////////////////////
+
+	type typeSpecific1 map[string]map[string]map[string][]string
+	expectSpecific1 := typeSpecific1{
 		"result": {
+			"2001016": {
+				"hardware": {"hdd4tb", "ram32mb"},
+				"laptop":   {"lenovo"},
+				"software": {"msoffice", "visualstudio"},
+			},
+			"2001040": {
+				"hardware": {"ram64mb", "ssd1tb"},
+				"laptop":   {"apple"},
+				"software": {"msoffice", "photoshop"},
+			},
+		},
+		"warning": {
+			"code": nil,
+			"message": nil,
+		},
+	}
+
+	var actualSpecific1 typeSpecific1
+	err = cli.CustomQuery(ctx, opaQry, nil, &actualSpecific1)
+	var jsonErr *json.UnmarshalTypeError
+	if !errors.As(err, &jsonErr) {
+		// We expect the OPA warning field to fail json-unmarshaling into typeSpecific1
+		t.Errorf("CustomQuery(Specific1) FAIL: expected json.UnmarshalTypeError, but got: err=%#v", err)
+	}
+	t.Logf("actualSpecific1=%#v", actualSpecific1)
+
+	if !reflect.DeepEqual(expectSpecific1, actualSpecific1) {
+		t.Errorf("CustomQuery(Specific1) FAIL\nexpectSpecific1=%#v\nactualSpecific1=%#v",
+			expectSpecific1, actualSpecific1)
+	}
+
+	////////////////////////////////////////////////////////////////
+
+	type typeSpecific2 struct {
+		Result  map[string]map[string][]string `json:"result"`
+	}
+	expectSpecific2 := typeSpecific2{
+		Result: map[string]map[string][]string{
 			"2001016": {
 				"hardware": {"hdd4tb", "ram32mb"},
 				"laptop":   {"lenovo"},
@@ -212,16 +270,53 @@ func TestCustomQuery(t *testing.T) {
 		},
 	}
 
-	var actualSpecific typeSpecific
-	err = cli.CustomQuery(ctx, opaQry, nil, &actualSpecific)
+	var actualSpecific2 typeSpecific2
+	err = cli.CustomQuery(ctx, opaQry, nil, &actualSpecific2)
 	if err != nil {
-		t.Errorf("CustomQuery(Specific) FAIL: err=%#v", err)
+		t.Errorf("CustomQuery(Specific2) FAIL: err=%#v", err)
 	}
-	t.Logf("actualSpecific=%#v", actualSpecific)
+	t.Logf("actualSpecific2=%#v", actualSpecific2)
 
-	if !reflect.DeepEqual(expectSpecific, actualSpecific) {
-		t.Errorf("CustomQuery(Specific) FAIL\nexpectSpecific=%#v\nactualSpecific=%#v",
-			expectSpecific, actualSpecific)
+	if !reflect.DeepEqual(expectSpecific2, actualSpecific2) {
+		t.Errorf("CustomQuery(Specific2) FAIL\nexpectSpecific2=%#v\nactualSpecific2=%#v",
+			expectSpecific2, actualSpecific2)
+	}
+
+	////////////////////////////////////////////////////////////////
+
+	type typeSpecific3 struct {
+		Result  map[string]map[string][]string `json:"result"`
+		Warning map[string]string `json:"warning"`
+	}
+	expectSpecific3 := typeSpecific3{
+		Result: map[string]map[string][]string{
+			"2001016": {
+				"hardware": {"hdd4tb", "ram32mb"},
+				"laptop":   {"lenovo"},
+				"software": {"msoffice", "visualstudio"},
+			},
+			"2001040": {
+				"hardware": {"ram64mb", "ssd1tb"},
+				"laptop":   {"apple"},
+				"software": {"msoffice", "photoshop"},
+			},
+		},
+		Warning: map[string]string{
+			"code":    "api_usage_warning",
+			"message": "'input' key missing from the request",
+		},
+	}
+
+	var actualSpecific3 typeSpecific3
+	err = cli.CustomQuery(ctx, opaQry, nil, &actualSpecific3)
+	if err != nil {
+		t.Errorf("CustomQuery(Specific3) FAIL: err=%#v", err)
+	}
+	t.Logf("actualSpecific3=%#v", actualSpecific3)
+
+	if !reflect.DeepEqual(expectSpecific3, actualSpecific3) {
+		t.Errorf("CustomQuery(Specific3) FAIL\nexpectSpecific3=%#v\nactualSpecific3=%#v",
+			expectSpecific3, actualSpecific3)
 	}
 }
 
