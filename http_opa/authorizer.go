@@ -214,7 +214,22 @@ func (a *httpAuthorizer) Validate(ctx context.Context, endpoint string, req inte
 		return nil, err
 	}
 
-	// Extract the nested result if present
+	// If OPA POST request body does NOT contain 'input' key,
+	// OPA will now add api_usage_warning "'input key' missing from the request"
+	// to the OPA POST response.
+	// This warning was added to OPA in v0.39.0:
+	// https://github.com/open-policy-agent/opa/releases/tag/v0.39.0
+	// https://github.com/open-policy-agent/opa/issues/4386
+	// https://github.com/open-policy-agent/opa/pull/4416
+	// (See warning example in ../pkg/opa_client/http_test.go)
+
+	// When we POST query OPA without url path, it returns results NOT encapsulated inside "result":
+	//   {"allow": true, ...}
+	// When we POST query OPA with explicit decision document, it returns results encapsulated inside "result":
+	//   {"result":{"allow": true, ...}}
+	// (See comments in testdata/mock_system_main.rego)
+	// If the JSON result document is nested within "result" wrapper map,
+	// we extract the nested JSON document and throw away the "result" wrapper map.	// Extract the nested result if present
 	nestedResultVal, resultIsNested := opaResp["result"]
 	if resultIsNested {
 		nestedResultMap, ok := nestedResultVal.(map[string]interface{})
