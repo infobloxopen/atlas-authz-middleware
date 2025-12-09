@@ -263,7 +263,7 @@ func Test_opbench_ToJSONBArrStmt(t *testing.T) {
 				vs := fmt.Sprintf("\t%s difference in got vs want statment"+
 					"\nGot: "+red+" \n\n%s\n\n "+reset+"\nWant: "+green+"\n\n%s\n\n"+reset,
 					failed, got, tt.want)
-				t.Errorf(vs)
+				t.Errorf("%s", vs)
 				return
 			} else {
 				t.Logf("\t%s test is passed", succeed)

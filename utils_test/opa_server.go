@@ -64,7 +64,7 @@ func StartOpa(ctx context.Context, t *testing.T, done chan struct{}) opa_client.
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 		defer cancel()
 		if err := opaSvr.Shutdown(shutdownCtx); err != nil {
-			t.Logf(err.Error())
+			t.Logf("%s", err.Error())
 			os.Exit(1)
 		}
 		close(done)
