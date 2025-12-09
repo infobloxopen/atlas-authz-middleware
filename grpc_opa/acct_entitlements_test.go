@@ -58,7 +58,8 @@ func TestGetAcctEntitlementsOpa(t *testing.T) {
 	}
 	t.Logf("rawBytes=%s", string(rawBytes))
 
-	expectJson := `{"result":{"2001016":{"environment":["ac","heated-seats"],"wheel":["abs","alloy","tpms"]},"2001040":{"environment":["ac","side-mirror-defogger"],"powertrain":["automatic","turbo"]},"2001230":{"powertrain":["manual","v8"],"wheel":["run-flat"]}}}`
+	expectJson := `{"result":{"2001016":{"environment":["ac","heated-seats"],"wheel":["abs","alloy","tpms"]},"2001040":{"environment":["ac","side-mirror-defogger"],"powertrain":["automatic","turbo"]},"2001230":{"powertrain":["manual","v8"],"wheel":["run-flat"]}}}
+`
 
 	if string(rawBytes) != expectJson {
 		t.Errorf("FAIL:\nrawBytes:  %s\nexpectJson: %s", string(rawBytes), expectJson)
