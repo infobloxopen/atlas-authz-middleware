@@ -26,7 +26,7 @@ import (
 )
 
 func usageAndExit() {
-	fmt.Fprintf(os.Stderr, strings.Replace(`
+	usageText := strings.Replace(`
 Usage: AUTHZ_MW_CLI <ip:port> validate <decisionDoc> <app> <endpoint> <jwt>
 Usage: AUTHZ_MW_CLI <ip:port> acct_entitlements <acct_id,...> <service,...>
 <ip:port> can be empty string, which will default to 'localhost:8181'
@@ -38,7 +38,8 @@ $ AUTHZ_MW_CLI localhost:18181 validate '' authz EffectivePermissions.GetEffecti
 $ AUTHZ_MW_CLI localhost:18181 validate '/v1/data/authz/rbac/validate_v1' authz EffectivePermissions.GetEffectivePermissions <jwt>
 $ AUTHZ_MW_CLI localhost:18181 acct_entitlements 16,40 ddi,rpz
 
-`, `AUTHZ_MW_CLI`, os.Args[0], -1))
+`, `AUTHZ_MW_CLI`, os.Args[0], -1)
+	fmt.Fprintf(os.Stderr, "%s", usageText)
 	logrus.Exit(0)
 }
 
