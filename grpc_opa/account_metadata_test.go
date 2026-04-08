@@ -25,22 +25,22 @@ func TestGetAccountMetadataMockOpaClient(t *testing.T) {
 			regoJSON: `{
 				"result": {
 					"identity_id": "f0e1d2c3-b4a5-6789-0fed-cba987654321",
-					"csp_id": 200,
+					"csp_id": "200",
 					"sfdc_account_id": "",
 					"account_type": "sandbox",
 					"parent_account_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-					"parent_csp_id": 100,
+					"parent_csp_id": "100",
 					"state": "active"
 				}
 			}`,
 			expectErr: false,
 			expectedVal: &AccountMetadataResult{
 				IdentityID:      "f0e1d2c3-b4a5-6789-0fed-cba987654321",
-				CspID:           200,
+				CspID:           "200",
 				SfdcAccountID:   "",
 				AccountType:     "sandbox",
 				ParentAccountID: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-				ParentCspID:     100,
+				ParentCspID:     "100",
 				State:           "active",
 			},
 		},
@@ -50,22 +50,22 @@ func TestGetAccountMetadataMockOpaClient(t *testing.T) {
 			regoJSON: `{
 				"result": {
 					"identity_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-					"csp_id": 100,
+					"csp_id": "100",
 					"sfdc_account_id": "001ABC000XYZ123",
 					"account_type": "regular",
 					"parent_account_id": "",
-					"parent_csp_id": 0,
+					"parent_csp_id": "",
 					"state": "active"
 				}
 			}`,
 			expectErr: false,
 			expectedVal: &AccountMetadataResult{
 				IdentityID:      "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-				CspID:           100,
+				CspID:           "100",
 				SfdcAccountID:   "001ABC000XYZ123",
 				AccountType:     "regular",
 				ParentAccountID: "",
-				ParentCspID:     0,
+				ParentCspID:     "",
 				State:           "active",
 			},
 		},
@@ -131,35 +131,35 @@ func TestGetParentCspIdMockOpaClient(t *testing.T) {
 		accountID string
 		regoJSON  string
 		expectErr bool
-		expectVal int64
+		expectVal string
 	}{
 		{
 			name:      "sandbox returns parent id",
 			accountID: "200",
-			regoJSON:  `{"result": 100}`,
+			regoJSON:  `{"result": "100"}`,
 			expectErr: false,
-			expectVal: 100,
+			expectVal: "100",
 		},
 		{
-			name:      "non-sandbox returns zero",
+			name:      "non-sandbox returns empty",
 			accountID: "100",
 			regoJSON:  `{"result": null}`,
 			expectErr: false,
-			expectVal: 0,
+			expectVal: "",
 		},
 		{
-			name:      "account not found returns zero",
+			name:      "account not found returns empty",
 			accountID: "999",
 			regoJSON:  `{}`,
 			expectErr: false,
-			expectVal: 0,
+			expectVal: "",
 		},
 		{
 			name:      "invalid json returns error",
 			accountID: "200",
 			regoJSON:  `[null]`,
 			expectErr: true,
-			expectVal: 0,
+			expectVal: "",
 		},
 	}
 
@@ -177,7 +177,7 @@ func TestGetParentCspIdMockOpaClient(t *testing.T) {
 		)
 
 		actualVal, actualErr := auther.GetParentCspId(ctx, tm.accountID)
-		t.Logf("%d: %q: actualErr=%v, actualVal=%d", nth, tm.name, actualErr, actualVal)
+		t.Logf("%d: %q: actualErr=%v, actualVal=%s", nth, tm.name, actualErr, actualVal)
 
 		if tm.expectErr && actualErr == nil {
 			t.Errorf("%d: %q: FAIL: expected err, but got no err", nth, tm.name)
@@ -186,7 +186,7 @@ func TestGetParentCspIdMockOpaClient(t *testing.T) {
 		}
 
 		if actualVal != tm.expectVal {
-			t.Errorf("%d: %q: FAIL: expectVal=%d actualVal=%d",
+			t.Errorf("%d: %q: FAIL: expectVal=%s actualVal=%s",
 				nth, tm.name, tm.expectVal, actualVal)
 		}
 	}
@@ -198,28 +198,28 @@ func TestGetCspBySfdcMockOpaClient(t *testing.T) {
 		sfdcID    string
 		regoJSON  string
 		expectErr bool
-		expectVal int64
+		expectVal string
 	}{
 		{
 			name:      "valid sfdc returns csp id",
 			sfdcID:    "001ABC000XYZ123",
-			regoJSON:  `{"result": 100}`,
+			regoJSON:  `{"result": "100"}`,
 			expectErr: false,
-			expectVal: 100,
+			expectVal: "100",
 		},
 		{
-			name:      "unknown sfdc returns zero",
+			name:      "unknown sfdc returns empty",
 			sfdcID:    "001UNKNOWN",
 			regoJSON:  `{"result": null}`,
 			expectErr: false,
-			expectVal: 0,
+			expectVal: "",
 		},
 		{
 			name:      "invalid json returns error",
 			sfdcID:    "001ABC",
 			regoJSON:  `[null]`,
 			expectErr: true,
-			expectVal: 0,
+			expectVal: "",
 		},
 	}
 
@@ -237,7 +237,7 @@ func TestGetCspBySfdcMockOpaClient(t *testing.T) {
 		)
 
 		actualVal, actualErr := auther.GetCspBySfdc(ctx, tm.sfdcID)
-		t.Logf("%d: %q: actualErr=%v, actualVal=%d", nth, tm.name, actualErr, actualVal)
+		t.Logf("%d: %q: actualErr=%v, actualVal=%s", nth, tm.name, actualErr, actualVal)
 
 		if tm.expectErr && actualErr == nil {
 			t.Errorf("%d: %q: FAIL: expected err, but got no err", nth, tm.name)
@@ -246,7 +246,7 @@ func TestGetCspBySfdcMockOpaClient(t *testing.T) {
 		}
 
 		if actualVal != tm.expectVal {
-			t.Errorf("%d: %q: FAIL: expectVal=%d actualVal=%d",
+			t.Errorf("%d: %q: FAIL: expectVal=%s actualVal=%s",
 				nth, tm.name, tm.expectVal, actualVal)
 		}
 	}
@@ -258,14 +258,14 @@ func TestGetSandboxesForParentMockOpaClient(t *testing.T) {
 		parentID  string
 		regoJSON  string
 		expectErr bool
-		expectVal []int64
+		expectVal []string
 	}{
 		{
 			name:      "parent with sandboxes",
 			parentID:  "100",
-			regoJSON:  `{"result": [200, 201]}`,
+			regoJSON:  `{"result": ["200", "201"]}`,
 			expectErr: false,
-			expectVal: []int64{200, 201},
+			expectVal: []string{"200", "201"},
 		},
 		{
 			name:      "parent with no sandboxes returns nil",

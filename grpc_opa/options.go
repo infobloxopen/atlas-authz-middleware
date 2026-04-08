@@ -76,49 +76,63 @@ func WithEntitledServices(entitledServices ...string) Option {
 // WithAcctEntitlementsApiPath overrides default AcctEntitlementsApiPath
 func WithAcctEntitlementsApiPath(acctEntitlementsApi string) Option {
 	return func(c *Config) {
-		c.acctEntitlementsApi = acctEntitlementsApi
+		if acctEntitlementsApi != "" {
+			c.acctEntitlementsApi = acctEntitlementsApi
+		}
 	}
 }
 
 // WithFilterComparmentPermissionsApiPath overrides default CurrentUserCompartmentsApiPath
 func WithFilterComparmentPermissionsApiPath(filterCompartmentPermsApi string) Option {
 	return func(c *Config) {
-		c.filterCompartmentPermsApi = filterCompartmentPermsApi
+		if filterCompartmentPermsApi != "" {
+			c.filterCompartmentPermsApi = filterCompartmentPermsApi
+		}
 	}
 }
 
 // WithFilterComparmentFeaturesApiPath overrides default CurrentUserCompartmentsApiPath
 func WithFilterComparmentFeaturesApiPath(filterCompartmentFeatsApi string) Option {
 	return func(c *Config) {
-		c.filterCompartmentFeatsApi = filterCompartmentFeatsApi
+		if filterCompartmentFeatsApi != "" {
+			c.filterCompartmentFeatsApi = filterCompartmentFeatsApi
+		}
 	}
 }
 
 // WithAccountMetadataApiPath overrides default AccountMetadataApiPath
 func WithAccountMetadataApiPath(accountMetadataApi string) Option {
 	return func(c *Config) {
-		c.accountMetadataApi = accountMetadataApi
+		if accountMetadataApi != "" {
+			c.accountMetadataApi = accountMetadataApi
+		}
 	}
 }
 
 // WithParentCspIdApiPath overrides default ParentCspIdApiPath
 func WithParentCspIdApiPath(parentCspIdApi string) Option {
 	return func(c *Config) {
-		c.parentCspIdApi = parentCspIdApi
+		if parentCspIdApi != "" {
+			c.parentCspIdApi = parentCspIdApi
+		}
 	}
 }
 
 // WithCspBySfdcApiPath overrides default CspBySfdcApiPath
 func WithCspBySfdcApiPath(cspBySfdcApi string) Option {
 	return func(c *Config) {
-		c.cspBySfdcApi = cspBySfdcApi
+		if cspBySfdcApi != "" {
+			c.cspBySfdcApi = cspBySfdcApi
+		}
 	}
 }
 
 // WithSandboxesForParentApiPath overrides default SandboxesForParentApiPath
 func WithSandboxesForParentApiPath(sandboxesForParentApi string) Option {
 	return func(c *Config) {
-		c.sandboxesForParentApi = sandboxesForParentApi
+		if sandboxesForParentApi != "" {
+			c.sandboxesForParentApi = sandboxesForParentApi
+		}
 	}
 }
 
@@ -141,4 +155,3 @@ func WithAccountMetadataBySfdcApiPath(path string) Option {
 		}
 	}
 }
-

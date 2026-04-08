@@ -5,9 +5,20 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/infobloxopen/atlas-authz-middleware/utils_test"
+
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	logrus "github.com/sirupsen/logrus"
 )
+
+// newTestContext creates a context with the testing.T propagated for mock-internal
+// logging, matching the pattern in account_metadata_test.go.
+func newTestContext(t *testing.T) context.Context {
+	t.Helper()
+	stdLoggr := logrus.StandardLogger()
+	ctx := context.WithValue(context.Background(), utils_test.TestingTContextKey, t)
+	return ctxlogrus.ToContext(ctx, logrus.NewEntry(stdLoggr))
+}
 
 func TestGetEnrichedAccountMetadataMockOpaClient(t *testing.T) {
 	testMap := []struct {
@@ -142,7 +153,7 @@ func TestGetEnrichedAccountMetadataMockOpaClient(t *testing.T) {
 	}
 
 	stdLoggr := logrus.StandardLogger()
-	ctx := ctxlogrus.ToContext(context.Background(), logrus.NewEntry(stdLoggr))
+	ctx := newTestContext(t)
 
 	for nth, tm := range testMap {
 		t.Run(tm.name, func(t *testing.T) {
@@ -298,7 +309,7 @@ func TestGetAccountDetailsMockOpaClient(t *testing.T) {
 	}
 
 	stdLoggr := logrus.StandardLogger()
-	ctx := ctxlogrus.ToContext(context.Background(), logrus.NewEntry(stdLoggr))
+	ctx := newTestContext(t)
 
 	for nth, tm := range testMap {
 		t.Run(tm.name, func(t *testing.T) {
@@ -380,7 +391,7 @@ func TestGetAccountDetailsBySfdcMockOpaClient(t *testing.T) {
 	}
 
 	stdLoggr := logrus.StandardLogger()
-	ctx := ctxlogrus.ToContext(context.Background(), logrus.NewEntry(stdLoggr))
+	ctx := newTestContext(t)
 
 	for nth, tm := range testMap {
 		t.Run(tm.name, func(t *testing.T) {
@@ -451,7 +462,7 @@ func TestGetCspBySfdcIDMockOpaClient(t *testing.T) {
 	}
 
 	stdLoggr := logrus.StandardLogger()
-	ctx := ctxlogrus.ToContext(context.Background(), logrus.NewEntry(stdLoggr))
+	ctx := newTestContext(t)
 
 	for nth, tm := range testMap {
 		t.Run(tm.name, func(t *testing.T) {
@@ -478,4 +489,3 @@ func TestGetCspBySfdcIDMockOpaClient(t *testing.T) {
 		})
 	}
 }
-

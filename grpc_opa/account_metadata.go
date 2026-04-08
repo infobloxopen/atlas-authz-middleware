@@ -23,9 +23,9 @@ const (
 )
 
 // AccountMetadataApiInput is the input payload for get_account_metadata_api
-// and get_parent_csp_id_api (both use account_id as input key)
+// and get_parent_csp_id_api (both use csp_account_id as input key)
 type AccountMetadataApiInput struct {
-	AccountID string `json:"account_id"`
+	AccountID string `json:"csp_account_id"`
 }
 
 // SfdcApiInput is the input payload for get_csp_by_sfdc_api
@@ -35,17 +35,19 @@ type SfdcApiInput struct {
 
 // ParentApiInput is the input payload for get_sandboxes_for_parent_api
 type ParentApiInput struct {
-	ParentAccountID string `json:"parent_account_id"`
+	ParentAccountID string `json:"parent_csp_id"`
 }
 
-// AccountMetadataResult is the account metadata returned from OPA
+// AccountMetadataResult is the account metadata returned from OPA.
+// Deprecated: Use AccountDetails from account_metadata_provider.go for new code.
+// This type is retained for backward compatibility with existing consumers.
 type AccountMetadataResult struct {
 	IdentityID      string `json:"identity_id"`
-	CspID           int64  `json:"csp_id"`
+	CspID           string `json:"csp_id"`
 	SfdcAccountID   string `json:"sfdc_account_id"`
 	AccountType     string `json:"account_type"`
 	ParentAccountID string `json:"parent_account_id"`
-	ParentCspID     int64  `json:"parent_csp_id"`
+	ParentCspID     string `json:"parent_csp_id"`
 	State           string `json:"state"`
 }
 
@@ -56,17 +58,17 @@ type AccountMetadataApiResult struct {
 
 // ParentCspIdApiResult wraps the OPA response for get_parent_csp_id_api
 type ParentCspIdApiResult struct {
-	Result *int64 `json:"result"`
+	Result *string `json:"result"`
 }
 
 // CspBySfdcApiResult wraps the OPA response for get_csp_by_sfdc_api
 type CspBySfdcApiResult struct {
-	Result *int64 `json:"result"`
+	Result *string `json:"result"`
 }
 
 // SandboxesForParentApiResult wraps the OPA response for get_sandboxes_for_parent_api
 type SandboxesForParentApiResult struct {
-	Result []int64 `json:"result"`
+	Result []string `json:"result"`
 }
 
 // GetAccountMetadata queries OPA sidecar for account metadata by CSP account ID.
@@ -96,8 +98,8 @@ func (a *DefaultAuthorizer) GetAccountMetadata(ctx context.Context, accountID st
 }
 
 // GetParentCspId queries OPA sidecar for the parent CSP ID of a sandbox account.
-// Returns 0 and nil error if the account is not a sandbox or not found.
-func (a *DefaultAuthorizer) GetParentCspId(ctx context.Context, sandboxCspID string) (int64, error) {
+// Returns "" and nil error if the account is not a sandbox or not found.
+func (a *DefaultAuthorizer) GetParentCspId(ctx context.Context, sandboxCspID string) (string, error) {
 	lgNtry := ctxlogrus.Extract(ctx)
 
 	opaReq := OPARequest{
@@ -110,10 +112,10 @@ func (a *DefaultAuthorizer) GetParentCspId(ctx context.Context, sandboxCspID str
 	err := a.clienter.CustomQuery(ctx, a.parentCspIdApi, opaReq, &apiResult)
 	if err != nil {
 		lgNtry.WithError(err).Error("get_parent_csp_id_fail")
-		return 0, err
+		return "", err
 	}
 
-	var parentID int64
+	var parentID string
 	if apiResult.Result != nil {
 		parentID = *apiResult.Result
 	}
@@ -127,8 +129,8 @@ func (a *DefaultAuthorizer) GetParentCspId(ctx context.Context, sandboxCspID str
 }
 
 // GetCspBySfdc queries OPA sidecar for CSP account ID by SFDC account ID.
-// Returns 0 and nil error if the SFDC account is not found.
-func (a *DefaultAuthorizer) GetCspBySfdc(ctx context.Context, sfdcAccountID string) (int64, error) {
+// Returns "" and nil error if the SFDC account is not found.
+func (a *DefaultAuthorizer) GetCspBySfdc(ctx context.Context, sfdcAccountID string) (string, error) {
 	lgNtry := ctxlogrus.Extract(ctx)
 
 	opaReq := OPARequest{
@@ -141,10 +143,10 @@ func (a *DefaultAuthorizer) GetCspBySfdc(ctx context.Context, sfdcAccountID stri
 	err := a.clienter.CustomQuery(ctx, a.cspBySfdcApi, opaReq, &apiResult)
 	if err != nil {
 		lgNtry.WithError(err).Error("get_csp_by_sfdc_fail")
-		return 0, err
+		return "", err
 	}
 
-	var cspID int64
+	var cspID string
 	if apiResult.Result != nil {
 		cspID = *apiResult.Result
 	}
@@ -159,7 +161,7 @@ func (a *DefaultAuthorizer) GetCspBySfdc(ctx context.Context, sfdcAccountID stri
 
 // GetSandboxesForParent queries OPA sidecar for all sandbox CSP IDs belonging to a parent.
 // Returns nil (not error) if the parent has no sandboxes or is not found.
-func (a *DefaultAuthorizer) GetSandboxesForParent(ctx context.Context, parentCspID string) ([]int64, error) {
+func (a *DefaultAuthorizer) GetSandboxesForParent(ctx context.Context, parentCspID string) ([]string, error) {
 	lgNtry := ctxlogrus.Extract(ctx)
 
 	opaReq := OPARequest{
