@@ -127,13 +127,19 @@ func (a AuthorizeFn) Evaluate(ctx context.Context, fullMethod string, grpcReq in
 
 func NewDefaultAuthorizer(application string, opts ...Option) *DefaultAuthorizer {
 	cfg := &Config{
-		address:                   opa_client.DefaultAddress,
-		decisionInputHandler:      defDecisionInputer,
-		claimsVerifier:            UnverifiedClaimFromBearers,
-		acctEntitlementsApi:       DefaultAcctEntitlementsApiPath,
-		currUserCompartmentsApi:   DefaultCurrentUserCompartmentsPath,
-		filterCompartmentPermsApi: DefaultFilterCompartmentPermissionsApiPath,
-		filterCompartmentFeatsApi: DefaultFilterCompartmentFeaturesApiPath,
+		address:                        opa_client.DefaultAddress,
+		decisionInputHandler:           defDecisionInputer,
+		claimsVerifier:                 UnverifiedClaimFromBearers,
+		acctEntitlementsApi:            DefaultAcctEntitlementsApiPath,
+		currUserCompartmentsApi:        DefaultCurrentUserCompartmentsPath,
+		filterCompartmentPermsApi:      DefaultFilterCompartmentPermissionsApiPath,
+		filterCompartmentFeatsApi:      DefaultFilterCompartmentFeaturesApiPath,
+		accountMetadataApi:             DefaultAccountMetadataApiPath,
+		parentCspIdApi:                 DefaultParentCspIdApiPath,
+		cspBySfdcApi:                   DefaultCspBySfdcApiPath,
+		sandboxesForParentApi:          DefaultSandboxesForParentApiPath,
+		acctEntitlementsFilteredApi:    DefaultAcctEntitlementsFilteredApiPath,
+		accountMetadataBySfdcApi:       DefaultAccountMetadataBySfdcApiPath,
 	}
 	for _, opt := range opts {
 		opt(cfg)
@@ -147,31 +153,43 @@ func NewDefaultAuthorizer(application string, opts ...Option) *DefaultAuthorizer
 	}
 
 	a := DefaultAuthorizer{
-		clienter:                  clienter,
-		opaEvaluator:              cfg.opaEvaluator,
-		application:               application,
-		decisionInputHandler:      cfg.decisionInputHandler,
-		claimsVerifier:            cfg.claimsVerifier,
-		entitledServices:          cfg.entitledServices,
-		acctEntitlementsApi:       cfg.acctEntitlementsApi,
-		currUserCompartmentsApi:   cfg.currUserCompartmentsApi,
-		filterCompartmentPermsApi: cfg.filterCompartmentPermsApi,
-		filterCompartmentFeatsApi: cfg.filterCompartmentFeatsApi,
+		clienter:                       clienter,
+		opaEvaluator:                   cfg.opaEvaluator,
+		application:                    application,
+		decisionInputHandler:           cfg.decisionInputHandler,
+		claimsVerifier:                 cfg.claimsVerifier,
+		entitledServices:               cfg.entitledServices,
+		acctEntitlementsApi:            cfg.acctEntitlementsApi,
+		currUserCompartmentsApi:        cfg.currUserCompartmentsApi,
+		filterCompartmentPermsApi:      cfg.filterCompartmentPermsApi,
+		filterCompartmentFeatsApi:      cfg.filterCompartmentFeatsApi,
+		accountMetadataApi:             cfg.accountMetadataApi,
+		parentCspIdApi:                 cfg.parentCspIdApi,
+		cspBySfdcApi:                   cfg.cspBySfdcApi,
+		sandboxesForParentApi:          cfg.sandboxesForParentApi,
+		acctEntitlementsFilteredApi:    cfg.acctEntitlementsFilteredApi,
+		accountMetadataBySfdcApi:       cfg.accountMetadataBySfdcApi,
 	}
 	return &a
 }
 
 type DefaultAuthorizer struct {
-	application               string
-	clienter                  opa_client.Clienter
-	opaEvaluator              OpaEvaluator
-	decisionInputHandler      DecisionInputHandler
-	claimsVerifier            ClaimsVerifier
-	entitledServices          []string
-	acctEntitlementsApi       string
-	currUserCompartmentsApi   string
-	filterCompartmentPermsApi string
-	filterCompartmentFeatsApi string
+	application                    string
+	clienter                       opa_client.Clienter
+	opaEvaluator                   OpaEvaluator
+	decisionInputHandler           DecisionInputHandler
+	claimsVerifier                 ClaimsVerifier
+	entitledServices               []string
+	acctEntitlementsApi            string
+	currUserCompartmentsApi        string
+	filterCompartmentPermsApi      string
+	filterCompartmentFeatsApi      string
+	accountMetadataApi             string
+	parentCspIdApi                 string
+	cspBySfdcApi                   string
+	sandboxesForParentApi          string
+	acctEntitlementsFilteredApi    string
+	accountMetadataBySfdcApi       string
 }
 
 type Config struct {
@@ -179,16 +197,22 @@ type Config struct {
 	// address to opa
 	address string
 
-	clienter                  opa_client.Clienter
-	opaEvaluator              OpaEvaluator
-	authorizer                []Authorizer
-	decisionInputHandler      DecisionInputHandler
-	claimsVerifier            ClaimsVerifier
-	entitledServices          []string
-	acctEntitlementsApi       string
-	currUserCompartmentsApi   string
-	filterCompartmentPermsApi string
-	filterCompartmentFeatsApi string
+	clienter                       opa_client.Clienter
+	opaEvaluator                   OpaEvaluator
+	authorizer                     []Authorizer
+	decisionInputHandler           DecisionInputHandler
+	claimsVerifier                 ClaimsVerifier
+	entitledServices               []string
+	acctEntitlementsApi            string
+	currUserCompartmentsApi        string
+	filterCompartmentPermsApi      string
+	filterCompartmentFeatsApi      string
+	accountMetadataApi             string
+	parentCspIdApi                 string
+	cspBySfdcApi                   string
+	sandboxesForParentApi          string
+	acctEntitlementsFilteredApi    string
+	accountMetadataBySfdcApi       string
 }
 
 type ClaimsVerifier func([]string, []string) (string, []error)

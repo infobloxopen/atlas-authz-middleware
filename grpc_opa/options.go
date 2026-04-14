@@ -76,20 +76,82 @@ func WithEntitledServices(entitledServices ...string) Option {
 // WithAcctEntitlementsApiPath overrides default AcctEntitlementsApiPath
 func WithAcctEntitlementsApiPath(acctEntitlementsApi string) Option {
 	return func(c *Config) {
-		c.acctEntitlementsApi = acctEntitlementsApi
+		if acctEntitlementsApi != "" {
+			c.acctEntitlementsApi = acctEntitlementsApi
+		}
 	}
 }
 
 // WithFilterComparmentPermissionsApiPath overrides default CurrentUserCompartmentsApiPath
 func WithFilterComparmentPermissionsApiPath(filterCompartmentPermsApi string) Option {
 	return func(c *Config) {
-		c.filterCompartmentPermsApi = filterCompartmentPermsApi
+		if filterCompartmentPermsApi != "" {
+			c.filterCompartmentPermsApi = filterCompartmentPermsApi
+		}
 	}
 }
 
 // WithFilterComparmentFeaturesApiPath overrides default CurrentUserCompartmentsApiPath
 func WithFilterComparmentFeaturesApiPath(filterCompartmentFeatsApi string) Option {
 	return func(c *Config) {
-		c.filterCompartmentFeatsApi = filterCompartmentFeatsApi
+		if filterCompartmentFeatsApi != "" {
+			c.filterCompartmentFeatsApi = filterCompartmentFeatsApi
+		}
+	}
+}
+
+// WithAccountMetadataApiPath overrides default AccountMetadataApiPath
+func WithAccountMetadataApiPath(accountMetadataApi string) Option {
+	return func(c *Config) {
+		if accountMetadataApi != "" {
+			c.accountMetadataApi = accountMetadataApi
+		}
+	}
+}
+
+// WithParentCspIdApiPath overrides default ParentCspIdApiPath
+func WithParentCspIdApiPath(parentCspIdApi string) Option {
+	return func(c *Config) {
+		if parentCspIdApi != "" {
+			c.parentCspIdApi = parentCspIdApi
+		}
+	}
+}
+
+// WithCspBySfdcApiPath overrides default CspBySfdcApiPath
+func WithCspBySfdcApiPath(cspBySfdcApi string) Option {
+	return func(c *Config) {
+		if cspBySfdcApi != "" {
+			c.cspBySfdcApi = cspBySfdcApi
+		}
+	}
+}
+
+// WithSandboxesForParentApiPath overrides default SandboxesForParentApiPath
+func WithSandboxesForParentApiPath(sandboxesForParentApi string) Option {
+	return func(c *Config) {
+		if sandboxesForParentApi != "" {
+			c.sandboxesForParentApi = sandboxesForParentApi
+		}
+	}
+}
+
+// WithAcctEntitlementsFilteredApiPath overrides the default path for
+// acct_entitlements_filtered_api (used by GetAccountDetails and GetEnrichedAccountMetadata).
+func WithAcctEntitlementsFilteredApiPath(path string) Option {
+	return func(c *Config) {
+		if path != "" {
+			c.acctEntitlementsFilteredApi = path
+		}
+	}
+}
+
+// WithAccountMetadataBySfdcApiPath overrides the default path for
+// get_account_metadata_by_sfdc_api (used by GetAccountDetailsBySfdc).
+func WithAccountMetadataBySfdcApiPath(path string) Option {
+	return func(c *Config) {
+		if path != "" {
+			c.accountMetadataBySfdcApi = path
+		}
 	}
 }
