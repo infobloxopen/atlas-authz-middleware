@@ -9,14 +9,12 @@ import (
 )
 
 const (
-	// DefaultAcctEntitlementsFilteredApiPath is the OPA path for the enriched
-	// acct_entitlements_filtered_api that returns entitlements + account_details +
-	// resolved_account_id per account in a single call.
-	// Sandbox-parent resolution is built into this rule: when
-	// authz_settings.sandbox_parent_entitlement_enabled is true, ResolvedAccountID
-	// is the PARENT's CSP ID for STATE-1 sandbox accounts. Consumers must use
-	// ResolvedAccountID for license/entitlement lookups so that after mirroring is
-	// disabled, reads automatically redirect to the parent without any code change.
+	// DefaultAcctEntitlementsFilteredApiPath is the OPA path for
+	// acct_entitlements_filtered_api, which returns each requested account's
+	// entitlements as service -> features, read straight from the bundle.
+	// Sandbox entitlements are written into the bundle when it is built, so the
+	// rule does not redirect a sandbox to its parent at query time and returns
+	// no account details.
 	DefaultAcctEntitlementsFilteredApiPath = "v1/data/authz/rbac/acct_entitlements_filtered_api"
 
 	// DefaultAccountMetadataBySfdcApiPath is the OPA path for the combined
@@ -40,18 +38,13 @@ type AccountDetails struct {
 	State       string `json:"state"`
 }
 
-// AcctEntitlementEnrichedEntry is the per-account entry returned by
-// acct_entitlements_filtered_api. It combines entitlements, account details,
-// and the resolved account ID in a single OPA call.
+// AcctEntitlementEnrichedEntry combines an account's entitlements (from
+// acct_entitlements_filtered_api) with its account details (from
+// get_account_metadata_api).
 //
-// ResolvedAccountID is the account ID that entitlements were read from:
-//   - For STATE-1 sandbox accounts (sandbox_parent_entitlement_enabled=true):
-//     this is the PARENT's CSP ID.
-//   - For all other accounts: this equals the account's own CSP ID.
-//
-// Consumers MUST use ResolvedAccountID for license/entitlement lookups.
-// This ensures that after mirroring is disabled, existing consumers
-// automatically redirect reads to the parent without any code change.
+// ResolvedAccountID is the account ID the entitlements were read for. It is
+// always the account's own CSP ID: sandbox entitlements are part of the
+// bundle, so no redirect to the parent is needed.
 type AcctEntitlementEnrichedEntry struct {
 	Entitlements      map[string][]string `json:"entitlements"`
 	AccountDetails    *AccountDetails     `json:"account_details"`
@@ -68,13 +61,11 @@ type AcctEntitlementEnrichedEntry struct {
 // NewDefaultAuthorizer("") and use it solely as AccountMetadataProvider.
 type AccountMetadataProvider interface {
 	// GetAccountDetails returns account details for the given CSP account ID
-	// by querying acct_entitlements_filtered_api. Sandbox-parent resolution is
-	// applied transparently via ResolvedAccountID.
+	// by querying get_account_metadata_api.
 	GetAccountDetails(ctx context.Context, cspAccountID string) (*AccountDetails, error)
 
-	// GetEnrichedAccountMetadata returns the full enriched entry
-	// (entitlements + account_details + resolved_account_id) for the given CSP
-	// account ID. Use ResolvedAccountID from the result for all downstream lookups.
+	// GetEnrichedAccountMetadata returns the entitlements and account details
+	// of the given CSP account ID. ResolvedAccountID is always cspAccountID.
 	GetEnrichedAccountMetadata(ctx context.Context, cspAccountID string) (*AcctEntitlementEnrichedEntry, error)
 
 	// GetAccountDetailsBySfdc returns full account details for the given SFDC ID
@@ -95,9 +86,9 @@ type acctEntitlementsFilteredInput struct {
 }
 
 // acctEntitlementsFilteredResult is the OPA response wrapper.
-// Result is a map of csp_account_id → AcctEntitlementEnrichedEntry.
+// Result maps csp_account_id → service → features.
 type acctEntitlementsFilteredResult struct {
-	Result map[string]*AcctEntitlementEnrichedEntry `json:"result"`
+	Result map[string]map[string][]string `json:"result"`
 }
 
 // sfdcIDInput is the input for get_csp_by_sfdc_api and get_account_metadata_by_sfdc_api.
@@ -117,8 +108,8 @@ type accountDetailsBySfdcResult struct {
 }
 
 // GetEnrichedAccountMetadata queries acct_entitlements_filtered_api for the given
-// CSP account ID and returns the full enriched entry including ResolvedAccountID.
-// Returns nil (not error) if the account is not in the OPA bundle.
+// CSP account ID's entitlements and get_account_metadata_api for its account
+// details. Returns nil (not error) if the account has neither in the OPA bundle.
 func (a *DefaultAuthorizer) GetEnrichedAccountMetadata(ctx context.Context, cspAccountID string) (*AcctEntitlementEnrichedEntry, error) {
 	lgNtry := ctxlogrus.Extract(ctx)
 
@@ -135,34 +126,47 @@ func (a *DefaultAuthorizer) GetEnrichedAccountMetadata(ctx context.Context, cspA
 		return nil, fmt.Errorf("get_enriched_account_metadata: %w", err)
 	}
 
-	entry, found := apiResult.Result[cspAccountID]
-	if !found || entry == nil {
+	details, err := a.GetAccountDetails(ctx, cspAccountID)
+	if err != nil {
+		return nil, fmt.Errorf("get_enriched_account_metadata: %w", err)
+	}
+
+	// The rule returns an empty object for a requested account that has no
+	// entitlements in the bundle, so without details it counts as absent.
+	entitlements := apiResult.Result[cspAccountID]
+	if len(entitlements) == 0 && details == nil {
 		lgNtry.WithField("csp_account_id", cspAccountID).Debug("enriched_account_metadata_not_found")
 		return nil, nil
 	}
 
-	lgNtry.WithFields(logrus.Fields{
-		"csp_account_id":      cspAccountID,
-		"resolved_account_id": entry.ResolvedAccountID,
-	}).Trace("get_enriched_account_metadata_okay")
+	lgNtry.WithField("csp_account_id", cspAccountID).Trace("get_enriched_account_metadata_okay")
 
-	return entry, nil
+	return &AcctEntitlementEnrichedEntry{
+		Entitlements:      entitlements,
+		AccountDetails:    details,
+		ResolvedAccountID: cspAccountID,
+	}, nil
 }
 
 // GetAccountDetails returns account details for the given CSP account ID
-// using acct_entitlements_filtered_api. Returns nil (not error) if absent.
+// using get_account_metadata_api. Returns nil (not error) if absent.
 func (a *DefaultAuthorizer) GetAccountDetails(ctx context.Context, cspAccountID string) (*AccountDetails, error) {
-	entry, err := a.GetEnrichedAccountMetadata(ctx, cspAccountID)
+	metadata, err := a.GetAccountMetadata(ctx, cspAccountID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get_account_details: %w", err)
 	}
-	if entry == nil {
+	if metadata == nil || metadata.CspID == "" {
 		return nil, nil
 	}
-	if entry.AccountDetails == nil || entry.AccountDetails.CspID == "" {
-		return nil, nil
-	}
-	return entry.AccountDetails, nil
+	return &AccountDetails{
+		IdentityID:      metadata.IdentityID,
+		CspID:           metadata.CspID,
+		SfdcAccountID:   metadata.SfdcAccountID,
+		AccountType:     metadata.AccountType,
+		ParentAccountID: metadata.ParentAccountID,
+		ParentCspID:     metadata.ParentCspID,
+		State:           metadata.State,
+	}, nil
 }
 
 // GetAccountDetailsBySfdc queries get_account_metadata_by_sfdc_api to resolve a
